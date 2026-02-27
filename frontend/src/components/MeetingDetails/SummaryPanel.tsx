@@ -196,9 +196,9 @@ export function SummaryPanel({
           />
         </div>
       ) : transcripts?.length > 0 && (
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
           {summaryResponse && (
-            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 shadow-lg p-4 max-h-1/3 overflow-y-auto border-t border-gray-200 dark:border-gray-800">
+            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 shadow-lg p-4 max-h-1/3 overflow-y-auto custom-scrollbar border-t border-gray-200 dark:border-gray-800">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Meeting Summary</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white dark:bg-gray-950 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800">

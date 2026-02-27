@@ -403,21 +403,63 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const root = document.documentElement;
+    let unlistenThemeChanged: (() => void) | null = null;
 
-    const applyTheme = () => {
+    const getSystemTheme = async (): Promise<'light' | 'dark'> => {
+      // Prefer native Tauri window theme when available (more reliable on Windows)
+      if ((window as any).__TAURI_INTERNALS__) {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const tauriTheme = await getCurrentWindow().theme();
+          if (tauriTheme === 'dark' || tauriTheme === 'light') {
+            return tauriTheme;
+          }
+        } catch (error) {
+          console.warn('[ConfigContext] Failed to read Tauri window theme, falling back to matchMedia:', error);
+        }
+      }
+      return mediaQuery.matches ? 'dark' : 'light';
+    };
+
+    const applyTheme = async () => {
+      const systemTheme = await getSystemTheme();
       const nextTheme: 'light' | 'dark' =
-        themeMode === 'dark' || (themeMode === 'system' && mediaQuery.matches) ? 'dark' : 'light';
+        themeMode === 'dark' || (themeMode === 'system' && systemTheme === 'dark') ? 'dark' : 'light';
       setResolvedTheme(nextTheme);
       root.classList.toggle('dark', nextTheme === 'dark');
     };
 
     applyTheme();
 
-    if (themeMode !== 'system') return;
+    if (themeMode !== 'system') {
+      return () => {
+        if (unlistenThemeChanged) unlistenThemeChanged();
+      };
+    }
 
-    const handleChange = () => applyTheme();
+    const handleChange = () => {
+      applyTheme();
+    };
     mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+
+    // Listen to native OS theme changes in Tauri
+    const setupTauriThemeListener = async () => {
+      if (!(window as any).__TAURI_INTERNALS__) return;
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        unlistenThemeChanged = await getCurrentWindow().onThemeChanged(() => {
+          applyTheme();
+        });
+      } catch (error) {
+        console.warn('[ConfigContext] Failed to subscribe to Tauri theme changes:', error);
+      }
+    };
+    setupTauriThemeListener();
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+      if (unlistenThemeChanged) unlistenThemeChanged();
+    };
   }, [themeMode]);
 
   const toggleIsAutoSummary = useCallback((checked: boolean) => {
