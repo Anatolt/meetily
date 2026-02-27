@@ -40,6 +40,8 @@ export interface NotificationSettings {
   };
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 interface ConfigContextType {
   // Model configuration
   modelConfig: ModelConfig;
@@ -60,6 +62,9 @@ interface ConfigContextType {
   // UI preferences
   showConfidenceIndicator: boolean;
   toggleConfidenceIndicator: (checked: boolean) => void;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  resolvedTheme: 'light' | 'dark';
 
   // Ollama models
   models: OllamaModel[];
@@ -140,6 +145,22 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       return saved !== null ? saved === 'true' : true;
     }
     return true;
+  });
+
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('themeMode');
+      if (saved === 'light' || saved === 'dark' || saved === 'system') {
+        return saved;
+      }
+    }
+    return 'system';
+  });
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
   });
 
   // Summary configs
@@ -370,6 +391,35 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     window.dispatchEvent(new CustomEvent('confidenceIndicatorChanged', { detail: checked }));
   }, []);
 
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('themeMode', mode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const root = document.documentElement;
+
+    const applyTheme = () => {
+      const nextTheme: 'light' | 'dark' =
+        themeMode === 'dark' || (themeMode === 'system' && mediaQuery.matches) ? 'dark' : 'light';
+      setResolvedTheme(nextTheme);
+      root.classList.toggle('dark', nextTheme === 'dark');
+    };
+
+    applyTheme();
+
+    if (themeMode !== 'system') return;
+
+    const handleChange = () => applyTheme();
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [themeMode]);
+
   const toggleIsAutoSummary = useCallback((checked: boolean) => {
     setisAutoSummary(checked);
     if (typeof window !== 'undefined') {
@@ -457,6 +507,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     setSelectedLanguage,
     showConfidenceIndicator,
     toggleConfidenceIndicator,
+    themeMode,
+    setThemeMode,
+    resolvedTheme,
     models,
     modelOptions,
     error,
@@ -476,6 +529,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     selectedLanguage,
     showConfidenceIndicator,
     toggleConfidenceIndicator,
+    themeMode,
+    setThemeMode,
+    resolvedTheme,
     models,
     modelOptions,
     error,
