@@ -191,6 +191,8 @@ const Sidebar: React.FC = () => {
         whisperModel: config.whisperModel,
         apiKey: config.apiKey,
         ollamaEndpoint: config.ollamaEndpoint,
+        summaryLanguageMode: config.summaryLanguageMode ?? 'system',
+        summaryLanguageValue: config.summaryLanguageValue ?? null,
       });
 
       setModelConfig(config);

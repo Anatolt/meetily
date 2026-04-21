@@ -97,6 +97,8 @@ export default function PageContent({
         whisperModel: config.whisperModel,
         apiKey: config.apiKey ?? null,
         ollamaEndpoint: config.ollamaEndpoint ?? null,
+        summaryLanguageMode: config.summaryLanguageMode ?? 'system',
+        summaryLanguageValue: config.summaryLanguageValue ?? null,
       });
 
       // Emit event so ConfigContext and other listeners stay in sync

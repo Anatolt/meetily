@@ -8,9 +8,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 // Compile regex once and reuse (significant performance improvement for repeated calls)
-static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap()
-});
+static THINKING_TAG_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap());
 
 /// Rough token count estimation using character count
 pub fn rough_token_count(s: &str) -> usize {
@@ -144,6 +143,7 @@ pub fn extract_meeting_name_from_markdown(markdown: &str) -> Option<String> {
 /// * `api_key` - API key for the provider
 /// * `text` - Full transcript text to summarize
 /// * `custom_prompt` - Optional user-provided context
+/// * `summary_language_instruction` - Optional language rule for generated summaries
 /// * `template_id` - Template identifier (e.g., "daily_standup", "standard_meeting")
 /// * `token_threshold` - Token limit for single-pass processing (default 4000)
 /// * `ollama_endpoint` - Optional custom Ollama endpoint
@@ -163,6 +163,7 @@ pub async fn generate_meeting_summary(
     api_key: &str,
     text: &str,
     custom_prompt: &str,
+    summary_language_instruction: &str,
     template_id: &str,
     token_threshold: usize,
     ollama_endpoint: Option<&str>,
@@ -193,7 +194,9 @@ pub async fn generate_meeting_summary(
     // Strategy: Use single-pass for cloud providers or short transcripts
     // Use multi-level chunking for Ollama/BuiltInAI with long transcripts
     // Note: CustomOpenAI is treated like cloud providers (unlimited context)
-    if (provider != &LLMProvider::Ollama && provider != &LLMProvider::BuiltInAI) || total_tokens < token_threshold {
+    if (provider != &LLMProvider::Ollama && provider != &LLMProvider::BuiltInAI)
+        || total_tokens < token_threshold
+    {
         info!(
             "Using single-pass summarization (tokens: {}, threshold: {})",
             total_tokens, token_threshold
@@ -212,14 +215,25 @@ pub async fn generate_meeting_summary(
         info!("Split transcript into {} chunks", num_chunks);
 
         let mut chunk_summaries = Vec::new();
-        let system_prompt_chunk = "You are an expert meeting summarizer.";
+        let system_prompt_chunk = if summary_language_instruction.is_empty() {
+            "You are an expert meeting summarizer.".to_string()
+        } else {
+            format!(
+                "You are an expert meeting summarizer.\n\n**OUTPUT LANGUAGE:**\n{}",
+                summary_language_instruction
+            )
+        };
         let user_prompt_template_chunk = "Provide a concise but comprehensive summary of the following transcript chunk. Capture all key points, decisions, action items, and mentioned individuals.\n\n<transcript_chunk>\n{}\n</transcript_chunk>";
 
         for (i, chunk) in chunks.iter().enumerate() {
             // Check for cancellation before processing each chunk
             if let Some(token) = cancellation_token {
                 if token.is_cancelled() {
-                    info!("Summary generation cancelled during chunk {}/{}", i + 1, num_chunks);
+                    info!(
+                        "Summary generation cancelled during chunk {}/{}",
+                        i + 1,
+                        num_chunks
+                    );
                     return Err("Summary generation was cancelled".to_string());
                 }
             }
@@ -232,7 +246,7 @@ pub async fn generate_meeting_summary(
                 provider,
                 model_name,
                 api_key,
-                system_prompt_chunk,
+                &system_prompt_chunk,
                 &user_prompt_chunk,
                 ollama_endpoint,
                 custom_openai_endpoint,
@@ -278,7 +292,14 @@ pub async fn generate_meeting_summary(
                 chunk_summaries.len()
             );
             let combined_text = chunk_summaries.join("\n---\n");
-            let system_prompt_combine = "You are an expert at synthesizing meeting summaries.";
+            let system_prompt_combine = if summary_language_instruction.is_empty() {
+                "You are an expert at synthesizing meeting summaries.".to_string()
+            } else {
+                format!(
+                    "You are an expert at synthesizing meeting summaries.\n\n**OUTPUT LANGUAGE:**\n{}",
+                    summary_language_instruction
+                )
+            };
             let user_prompt_combine_template = "The following are consecutive summaries of a meeting. Combine them into a single, coherent, and detailed narrative summary that retains all important details, organized logically.\n\n<summaries>\n{}\n</summaries>";
 
             let user_prompt_combine = user_prompt_combine_template.replace("{}", &combined_text);
@@ -287,7 +308,7 @@ pub async fn generate_meeting_summary(
                 provider,
                 model_name,
                 api_key,
-                system_prompt_combine,
+                &system_prompt_combine,
                 &user_prompt_combine,
                 ollama_endpoint,
                 custom_openai_endpoint,
@@ -303,7 +324,10 @@ pub async fn generate_meeting_summary(
         };
     }
 
-    info!("Generating final markdown report with template: {}", template_id);
+    info!(
+        "Generating final markdown report with template: {}",
+        template_id
+    );
 
     // Load the template using the provided template_id
     let template = templates::get_template(template_id)
@@ -323,6 +347,7 @@ pub async fn generate_meeting_summary(
 4. If a section has no relevant info, write "None noted in this section."
 5. Output **only** the completed Markdown report.
 6. If unsure about something, omit it.
+{}
 
 **SECTION-SPECIFIC INSTRUCTIONS:**
 {}
@@ -331,7 +356,16 @@ pub async fn generate_meeting_summary(
 {}
 </template>
 "#,
-        section_instructions, clean_template_markdown
+        if summary_language_instruction.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\n**OUTPUT LANGUAGE:**\n7. {}\n8. Translate section titles and empty-section placeholders into the target language.",
+                summary_language_instruction
+            )
+        },
+        section_instructions,
+        clean_template_markdown
     );
 
     let mut final_user_prompt = format!(

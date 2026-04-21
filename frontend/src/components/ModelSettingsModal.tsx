@@ -43,6 +43,8 @@ export interface ModelConfig {
   maxTokens?: number | null;
   temperature?: number | null;
   topP?: number | null;
+  summaryLanguageMode?: 'system' | 'transcript' | 'fixed' | 'custom';
+  summaryLanguageValue?: string | null;
 }
 
 interface OllamaModel {

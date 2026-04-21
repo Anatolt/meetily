@@ -114,7 +114,9 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
         model: configToSave.model,
         whisperModel: configToSave.whisperModel,
         apiKey: configToSave.apiKey ?? null,
-        ollamaEndpoint: configToSave.ollamaEndpoint ?? null
+        ollamaEndpoint: configToSave.ollamaEndpoint ?? null,
+        summaryLanguageMode: configToSave.summaryLanguageMode ?? 'system',
+        summaryLanguageValue: configToSave.summaryLanguageValue ?? null
       };
       console.log('Saving model config with payload:', payload);
 
@@ -137,6 +139,8 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
         whisperModel: payload.whisperModel,
         apiKey: payload.apiKey,
         ollamaEndpoint: payload.ollamaEndpoint,
+        summaryLanguageMode: payload.summaryLanguageMode,
+        summaryLanguageValue: payload.summaryLanguageValue,
       });
 
       console.log('Save model config success');

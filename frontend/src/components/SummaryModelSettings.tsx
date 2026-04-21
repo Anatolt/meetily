@@ -6,10 +6,52 @@ import { toast } from 'sonner';
 import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal';
 import { Switch } from './ui/switch';
 import { useConfig } from '@/contexts/ConfigContext';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 
 interface SummaryModelSettingsProps {
   refetchTrigger?: number; // Change this to trigger refetch
 }
+
+const SUMMARY_LANGUAGE_OPTIONS = [
+  { value: 'system', label: 'System default', mode: 'system' as const, language: null },
+  { value: 'transcript', label: 'Same as transcript', mode: 'transcript' as const, language: null },
+  { value: 'English', label: 'English', mode: 'fixed' as const, language: 'English' },
+  { value: 'Russian', label: 'Russian', mode: 'fixed' as const, language: 'Russian' },
+  { value: 'Polish', label: 'Polish', mode: 'fixed' as const, language: 'Polish' },
+  { value: 'German', label: 'German', mode: 'fixed' as const, language: 'German' },
+  { value: 'Spanish', label: 'Spanish', mode: 'fixed' as const, language: 'Spanish' },
+  { value: 'French', label: 'French', mode: 'fixed' as const, language: 'French' },
+  { value: 'custom', label: 'Custom...', mode: 'custom' as const, language: null },
+];
+
+const getSummaryLanguageSelectValue = (config: ModelConfig) => {
+  if (config.summaryLanguageMode === 'fixed' && config.summaryLanguageValue) {
+    return config.summaryLanguageValue;
+  }
+  return config.summaryLanguageMode || 'system';
+};
+
+const getSystemLanguageName = () => {
+  if (typeof window === 'undefined') return null;
+
+  const locale = window.navigator.language || window.navigator.languages?.[0];
+  if (!locale) return null;
+
+  try {
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
+    return displayNames.of(locale.split('-')[0]) || null;
+  } catch {
+    return null;
+  }
+};
 
 export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsProps) {
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
@@ -17,7 +59,9 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
     model: 'llama3.2:latest',
     whisperModel: 'large-v3',
     apiKey: null,
-    ollamaEndpoint: null
+    ollamaEndpoint: null,
+    summaryLanguageMode: 'system',
+    summaryLanguageValue: null
   });
 
   const { isAutoSummary, toggleIsAutoSummary } = useConfig();
@@ -57,7 +101,11 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
             console.error('Failed to fetch custom OpenAI config:', err);
           }
         }
-        setModelConfig(data);
+        setModelConfig({
+          ...data,
+          summaryLanguageMode: data.summaryLanguageMode || 'system',
+          summaryLanguageValue: data.summaryLanguageValue || null,
+        });
       }
     } catch (error) {
       console.error('Failed to fetch model config:', error);
@@ -83,7 +131,11 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<ModelConfig>('model-config-updated', (event) => {
         console.log('SummaryModelSettings received model-config-updated event:', event.payload);
-        setModelConfig(event.payload);
+        setModelConfig({
+          ...event.payload,
+          summaryLanguageMode: event.payload.summaryLanguageMode || 'system',
+          summaryLanguageValue: event.payload.summaryLanguageValue || null,
+        });
       });
 
       return unlisten;
@@ -106,6 +158,8 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
         whisperModel: config.whisperModel,
         apiKey: config.apiKey,
         ollamaEndpoint: config.ollamaEndpoint,
+        summaryLanguageMode: config.summaryLanguageMode || 'system',
+        summaryLanguageValue: config.summaryLanguageValue || null,
       });
 
       setModelConfig(config);
@@ -121,6 +175,60 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
     }
   };
 
+  const saveSummaryLanguageConfig = async (nextConfig: ModelConfig) => {
+    try {
+      await invoke('api_save_model_config', {
+        provider: nextConfig.provider,
+        model: nextConfig.model,
+        whisperModel: nextConfig.whisperModel,
+        apiKey: nextConfig.apiKey,
+        ollamaEndpoint: nextConfig.ollamaEndpoint,
+        summaryLanguageMode: nextConfig.summaryLanguageMode || 'system',
+        summaryLanguageValue: nextConfig.summaryLanguageValue || null,
+      });
+
+      setModelConfig(nextConfig);
+
+      const { emit } = await import('@tauri-apps/api/event');
+      await emit('model-config-updated', nextConfig);
+
+      toast.success('Summary language saved successfully');
+    } catch (error) {
+      console.error('Error saving summary language:', error);
+      toast.error('Failed to save summary language');
+    }
+  };
+
+  const handleSummaryLanguageSelect = async (value: string) => {
+    const option = SUMMARY_LANGUAGE_OPTIONS.find((item) => item.value === value);
+    if (!option) return;
+
+    const nextConfig: ModelConfig = {
+      ...modelConfig,
+      summaryLanguageMode: option.mode,
+      summaryLanguageValue: option.mode === 'fixed'
+        ? option.language
+        : option.mode === 'system'
+          ? getSystemLanguageName()
+          : null,
+    };
+
+    setModelConfig(nextConfig);
+
+    if (option.mode !== 'custom') {
+      await saveSummaryLanguageConfig(nextConfig);
+    }
+  };
+
+  const handleCustomLanguageBlur = async () => {
+    if (modelConfig.summaryLanguageMode !== 'custom') return;
+    const customLanguage = modelConfig.summaryLanguageValue?.trim();
+    await saveSummaryLanguageConfig({
+      ...modelConfig,
+      summaryLanguageValue: customLanguage || null,
+    });
+  };
+
   return (
     <div className='flex flex-col gap-4'>
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
@@ -130,6 +238,47 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
             <p className="text-sm text-gray-600 dark:text-gray-300">Auto Generating summary after meeting completion(Stopping)</p>
           </div>
           <Switch checked={isAutoSummary} onCheckedChange={toggleIsAutoSummary} />
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Summary Output Language</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Choose the language used for generated summaries, independent of the spoken language.
+        </p>
+
+        <div className="space-y-3">
+          <Select
+            value={getSummaryLanguageSelectValue(modelConfig)}
+            onValueChange={handleSummaryLanguageSelect}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select summary language" />
+            </SelectTrigger>
+            <SelectContent>
+              {SUMMARY_LANGUAGE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {modelConfig.summaryLanguageMode === 'custom' && (
+            <div className="space-y-2">
+              <Label htmlFor="summary-custom-language">Custom language name</Label>
+              <Input
+                id="summary-custom-language"
+                value={modelConfig.summaryLanguageValue || ''}
+                onChange={(event) => setModelConfig((prev) => ({
+                  ...prev,
+                  summaryLanguageValue: event.target.value,
+                }))}
+                onBlur={handleCustomLanguageBlur}
+                placeholder="e.g. Brazilian Portuguese"
+              />
+            </div>
+          )}
         </div>
       </div>
 

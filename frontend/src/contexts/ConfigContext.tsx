@@ -107,7 +107,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     provider: 'ollama',
     model: 'llama3.2:latest',
     whisperModel: 'large-v3',
-    ollamaEndpoint: null
+    ollamaEndpoint: null,
+    summaryLanguageMode: 'system',
+    summaryLanguageValue: null
   });
 
   // Transcript model configuration state
@@ -273,6 +275,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
                   maxTokens: customConfig.maxTokens,
                   temperature: customConfig.temperature,
                   topP: customConfig.topP,
+                  summaryLanguageMode: data.summaryLanguageMode || 'system',
+                  summaryLanguageValue: data.summaryLanguageValue || null,
                 }));
 
                 // Seed per-provider model cache from DB
@@ -296,6 +300,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
             model: data.model || prev.model,
             whisperModel: data.whisperModel || prev.whisperModel,
             ollamaEndpoint: data.ollamaEndpoint,
+            summaryLanguageMode: data.summaryLanguageMode || 'system',
+            summaryLanguageValue: data.summaryLanguageValue || null,
           }));
 
           // Seed per-provider model cache from DB

@@ -12,6 +12,10 @@ pub struct SaveModelConfigRequest {
     pub api_key: Option<String>,
     #[serde(rename = "ollamaEndpoint")]
     pub ollama_endpoint: Option<String>,
+    #[serde(rename = "summaryLanguageMode")]
+    pub summary_language_mode: Option<String>,
+    #[serde(rename = "summaryLanguageValue")]
+    pub summary_language_value: Option<String>,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -44,23 +48,32 @@ impl SettingsRepository {
         model: &str,
         whisper_model: &str,
         ollama_endpoint: Option<&str>,
+        summary_language_mode: Option<&str>,
+        summary_language_value: Option<&str>,
     ) -> std::result::Result<(), sqlx::Error> {
         // Using id '1' for backward compatibility
         sqlx::query(
             r#"
-            INSERT INTO settings (id, provider, model, whisperModel, ollamaEndpoint)
-            VALUES ('1', $1, $2, $3, $4)
+            INSERT INTO settings (id, provider, model, whisperModel, ollamaEndpoint, summaryLanguageMode, summaryLanguageValue)
+            VALUES ('1', $1, $2, $3, $4, $5, $6)
             ON CONFLICT(id) DO UPDATE SET
                 provider = excluded.provider,
                 model = excluded.model,
                 whisperModel = excluded.whisperModel,
-                ollamaEndpoint = excluded.ollamaEndpoint
+                ollamaEndpoint = excluded.ollamaEndpoint,
+                summaryLanguageMode = COALESCE(excluded.summaryLanguageMode, settings.summaryLanguageMode),
+                summaryLanguageValue = CASE
+                    WHEN excluded.summaryLanguageMode IS NULL THEN settings.summaryLanguageValue
+                    ELSE excluded.summaryLanguageValue
+                END
             "#,
         )
         .bind(provider)
         .bind(model)
         .bind(whisper_model)
         .bind(ollama_endpoint)
+        .bind(summary_language_mode)
+        .bind(summary_language_value)
         .execute(pool)
         .await?;
 

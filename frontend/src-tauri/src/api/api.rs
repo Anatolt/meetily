@@ -76,6 +76,10 @@ pub struct ModelConfig {
     pub api_key: Option<String>,
     #[serde(rename = "ollamaEndpoint")]
     pub ollama_endpoint: Option<String>,
+    #[serde(rename = "summaryLanguageMode")]
+    pub summary_language_mode: Option<String>,
+    #[serde(rename = "summaryLanguageValue")]
+    pub summary_language_value: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,6 +92,10 @@ pub struct SaveModelConfigRequest {
     pub api_key: Option<String>,
     #[serde(rename = "ollamaEndpoint")]
     pub ollama_endpoint: Option<String>,
+    #[serde(rename = "summaryLanguageMode")]
+    pub summary_language_mode: Option<String>,
+    #[serde(rename = "summaryLanguageValue")]
+    pub summary_language_value: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -490,6 +498,8 @@ pub async fn api_get_model_config<R: Runtime>(
                         whisper_model: config.whisper_model,
                         api_key,
                         ollama_endpoint: config.ollama_endpoint,
+                        summary_language_mode: config.summary_language_mode,
+                        summary_language_value: config.summary_language_value,
                     }))
                 }
                 Err(e) => {
@@ -522,6 +532,8 @@ pub async fn api_save_model_config<R: Runtime>(
     whisper_model: String,
     api_key: Option<String>,
     ollama_endpoint: Option<String>,
+    summary_language_mode: Option<String>,
+    summary_language_value: Option<String>,
     _auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
@@ -539,6 +551,8 @@ pub async fn api_save_model_config<R: Runtime>(
         &model,
         &whisper_model,
         ollama_endpoint.as_deref(),
+        summary_language_mode.as_deref(),
+        summary_language_value.as_deref(),
     )
     .await
     {
