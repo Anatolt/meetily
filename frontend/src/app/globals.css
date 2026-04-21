@@ -146,11 +146,29 @@
     @apply border-border;
   }
 
-  /* html, */
+  html,
   body {
     @apply bg-background text-foreground;
+    margin: 0;
     overflow: hidden;
     height: 100%;
+    width: 100%;
+  }
+
+  html {
+    background-color: hsl(var(--background));
+    overscroll-behavior: none;
+  }
+
+  .dark html,
+  .dark body {
+    background-color: #020617;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+    overscroll-behavior: none;
   }
 
   /* Make the window draggable */
@@ -193,34 +211,48 @@
   }
 
   /* Global scrollbars */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track,
   *::-webkit-scrollbar-track {
     background: #f3f4f6;
   }
 
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb,
   *::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 9999px;
     border: 2px solid #f3f4f6;
   }
 
+  html::-webkit-scrollbar-thumb:hover,
+  body::-webkit-scrollbar-thumb:hover,
   *::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
 
+  .dark html::-webkit-scrollbar-track,
+  .dark body::-webkit-scrollbar-track,
   .dark *::-webkit-scrollbar-track {
     background: #020617;
   }
 
+  .dark html::-webkit-scrollbar-thumb,
+  .dark body::-webkit-scrollbar-thumb,
   .dark *::-webkit-scrollbar-thumb {
     background: #334155;
     border-color: #020617;
   }
 
+  .dark html::-webkit-scrollbar-thumb:hover,
+  .dark body::-webkit-scrollbar-thumb:hover,
   .dark *::-webkit-scrollbar-thumb:hover {
     background: #475569;
   }
@@ -245,6 +277,44 @@
     width: 100% !important;
     max-width: none !important;
     overflow: visible !important;
+  }
+
+  .dark .bn-container,
+  .dark .bn-editor,
+  .dark .bn-container *,
+  .dark .bn-editor * {
+    scrollbar-color: #334155 #020617 !important;
+  }
+
+  .dark .bn-container::-webkit-scrollbar,
+  .dark .bn-editor::-webkit-scrollbar,
+  .dark .bn-container *::-webkit-scrollbar,
+  .dark .bn-editor *::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  .dark .bn-container::-webkit-scrollbar-track,
+  .dark .bn-editor::-webkit-scrollbar-track,
+  .dark .bn-container *::-webkit-scrollbar-track,
+  .dark .bn-editor *::-webkit-scrollbar-track {
+    background: #020617 !important;
+  }
+
+  .dark .bn-container::-webkit-scrollbar-thumb,
+  .dark .bn-editor::-webkit-scrollbar-thumb,
+  .dark .bn-container *::-webkit-scrollbar-thumb,
+  .dark .bn-editor *::-webkit-scrollbar-thumb {
+    background: #334155 !important;
+    border: 2px solid #020617 !important;
+    border-radius: 9999px !important;
+  }
+
+  .dark .bn-container::-webkit-scrollbar-thumb:hover,
+  .dark .bn-editor::-webkit-scrollbar-thumb:hover,
+  .dark .bn-container *::-webkit-scrollbar-thumb:hover,
+  .dark .bn-editor *::-webkit-scrollbar-thumb:hover {
+    background: #475569 !important;
   }
 
   /* Disable internal scrolling - let parent handle all scrolling */
