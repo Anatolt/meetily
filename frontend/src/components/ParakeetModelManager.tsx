@@ -556,8 +556,8 @@ function ModelCard({
           <div className="ml-4 flex items-center gap-2">
             {isAvailable && !isCancelling && (
               <>
-                <div className="flex items-center gap-1.5 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex items-center gap-1.5 text-success-text">
+                  <div className="w-2 h-2 bg-success rounded-full"></div>
                   <span className="text-xs font-medium">Ready</span>
                 </div>
                 <AnimatePresence>
@@ -642,14 +642,8 @@ function ModelCard({
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-blue-600">
-                  {isCancelling ? 'Cancelling…' : 'Downloading...'}
-                </span>
-                {!isCancelling && (
-                  <span className="text-sm font-semibold text-blue-600">
-                    {Math.round(displayedProgress)}%
-                  </span>
-                )}
+                <span className="text-sm font-medium text-info-text">Downloading...</span>
+                <span className="text-sm font-semibold text-info-text">{Math.round(downloadProgress)}%</span>
               </div>
               {isCancelling ? (
                 <span className="text-xs text-gray-500 font-medium px-2 py-1">

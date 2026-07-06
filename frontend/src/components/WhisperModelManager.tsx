@@ -645,10 +645,10 @@ function ModelCard({
               )}
               {isQuantizedModel(model.name) && (
                 <span className={`px-2 py-0.5 rounded-full text-xs ${getModelPerformanceBadge(model.name).color === 'green'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-success/15 text-success-text'
                   : getModelPerformanceBadge(model.name).color === 'orange'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-warning/15 text-warning-text'
+                    : 'bg-muted text-foreground'
                   }`}>
                   {getModelPerformanceBadge(model.name).label}
                 </span>
@@ -676,8 +676,8 @@ function ModelCard({
           <div className="ml-4 flex items-center gap-2">
             {isAvailable && (
               <>
-                <div className="flex items-center gap-1.5 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex items-center gap-1.5 text-success-text">
+                  <div className="w-2 h-2 bg-success rounded-full"></div>
                   <span className="text-xs font-medium">Ready</span>
                 </div>
                 <AnimatePresence>
@@ -762,12 +762,8 @@ function ModelCard({
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-blue-600">
-                  {isCancelling ? 'Cancelling…' : 'Downloading...'}
-                </span>
-                {!isCancelling && (
-                  <span className="text-sm font-semibold text-blue-600">{Math.round(downloadProgress)}%</span>
-                )}
+                <span className="text-sm font-medium text-info-text">Downloading...</span>
+                <span className="text-sm font-semibold text-info-text">{Math.round(downloadProgress)}%</span>
               </div>
               {isCancelling ? (
                 <span className="text-xs text-gray-500 font-medium px-2 py-1">

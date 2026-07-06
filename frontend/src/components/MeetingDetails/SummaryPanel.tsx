@@ -316,9 +316,9 @@ export function SummaryPanel({
             />
           </div>
           {summaryStatus !== 'idle' && (
-            <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :
-              summaryStatus === 'completed' ? 'bg-green-100 text-green-700' :
-                'bg-blue-100 text-blue-700'
+            <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-destructive/15 text-destructive' :
+              summaryStatus === 'completed' ? 'bg-success/15 text-success-text' :
+                'bg-info/15 text-info-text'
               }`}>
               <p className="text-sm font-medium">{getSummaryStatusMessage(summaryStatus)}</p>
             </div>

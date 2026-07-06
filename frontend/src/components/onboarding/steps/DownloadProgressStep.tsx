@@ -425,8 +425,8 @@ export function DownloadProgressStep() {
             <Loader2 className="w-5 h-5 text-gray-700 animate-spin" />
           )}
           {state.status === 'completed' && (
-            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-              <Check className="w-4 h-4 text-green-600" />
+            <div className="w-6 h-6 rounded-full bg-success/15 flex items-center justify-center">
+              <Check className="w-4 h-4 text-success-text" />
             </div>
           )}
           {state.status === 'error' && (

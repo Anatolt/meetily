@@ -202,11 +202,11 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
             </button>
           </div>
 
-          <div className="p-4 border rounded-lg bg-blue-50">
-            <div className="text-sm text-blue-800">
+          <div className="p-4 border rounded-lg bg-info/10">
+            <div className="text-sm text-info-text">
               <strong>File Format:</strong> {preferences.file_format.toUpperCase()} files
             </div>
-            <div className="text-xs text-blue-600 mt-1">
+            <div className="text-xs text-info-text mt-1">
               Recordings are saved with timestamp: recording_YYYYMMDD_HHMMSS.{preferences.file_format}
             </div>
           </div>
@@ -215,8 +215,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
       {/* Info when auto_save is disabled */}
       {!preferences.auto_save && (
-        <div className="p-4 border rounded-lg bg-yellow-50">
-          <div className="text-sm text-yellow-800">
+        <div className="p-4 border rounded-lg bg-warning/10">
+          <div className="text-sm text-warning-text">
             Audio recording is disabled. Enable "Save Audio Recordings" to automatically save your meeting audio.
           </div>
         </div>
