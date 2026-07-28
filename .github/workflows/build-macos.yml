@@ -69,7 +69,8 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          # The dark-theme branch uses a v9 lockfile.
+          version: 9
           run_install: false
 
       - name: Setup Node
@@ -177,6 +178,17 @@ jobs:
         with:
           projectPath: frontend
           args: --target aarch64-apple-darwin ${{ steps.build-profile.outputs.args }}
+
+      - name: Disable updater signatures for unsigned build
+        if: ${{ github.event.inputs.sign-build != 'true' }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "frontend/src-tauri/tauri.conf.json";
+            const config = JSON.parse(fs.readFileSync(path, "utf8"));
+            config.bundle.createUpdaterArtifacts = false;
+            fs.writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+          '
 
       - name: Build Tauri app (unsigned)
         if: ${{ github.event.inputs.sign-build != 'true' }}
