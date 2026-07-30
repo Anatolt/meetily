@@ -191,12 +191,12 @@ a:focus-visible {
 
 .hero {
   width: min(1180px, calc(100% - 32px));
-  min-height: min(760px, calc(100svh - 150px));
+  min-height: min(780px, calc(100svh - 120px));
   margin: 0 auto;
   padding: 3.25rem 0 2.25rem;
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-  gap: clamp(2rem, 6vw, 5rem);
+  grid-template-columns: minmax(0, 0.78fr) minmax(400px, 1.22fr);
+  gap: clamp(2rem, 5vw, 4rem);
   align-items: center;
 }
 
@@ -249,6 +249,12 @@ h3 {
   font-size: clamp(1.05rem, 2vw, 1.24rem);
 }
 
+.byline {
+  margin: 1.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -274,6 +280,12 @@ h3 {
   color: var(--surface);
 }
 
+.secondary-download {
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
 .secondary {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -281,6 +293,7 @@ h3 {
 }
 
 .hero-visual {
+  margin: 0;
   padding: clamp(0.5rem, 2vw, 1rem);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -290,10 +303,16 @@ h3 {
 
 .hero-visual img {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 2796 / 1836;
   object-fit: cover;
-  object-position: left top;
   border-radius: 6px;
+}
+
+.hero-visual figcaption,
+.settings-preview figcaption {
+  padding: 0.8rem 0.2rem 0.1rem;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .notice,
@@ -322,6 +341,25 @@ h3 {
 
 .section {
   padding: 5rem 0 0;
+}
+
+.preview {
+  padding-top: 6rem;
+}
+
+.settings-preview {
+  margin: 0;
+  padding: clamp(0.5rem, 2vw, 1rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.settings-preview img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
 }
 
 .section-heading {
@@ -361,6 +399,10 @@ h3 {
   display: grid;
   gap: 1rem;
   align-content: space-between;
+}
+
+.download-card.featured {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
 }
 
 .download-card p {

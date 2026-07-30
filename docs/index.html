@@ -1,47 +1,63 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <meta
       name="description"
-      content="Неофициальная страница загрузки Meetily с темной темой: macOS и Windows сборки dark-theme-0.4.0."
+      content="Download an unofficial Meetily 0.4.0 build with System, Light, and Dark appearance modes for macOS and Windows."
     >
-    <title>Meetily Dark Theme - неофициальная сборка</title>
+    <meta property="og:title" content="Meetily Dark Theme — macOS &amp; Windows">
+    <meta
+      property="og:description"
+      content="An unofficial downloadable Meetily build with System, Light, and Dark appearance modes."
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://anatolt.github.io/meetily/">
+    <meta
+      property="og:image"
+      content="https://anatolt.github.io/meetily/meetily-dark-transcription.png"
+    >
+    <title>Meetily Dark Theme — macOS &amp; Windows</title>
     <link rel="icon" href="./Meetily-6.png">
     <link rel="stylesheet" href="./styles.css">
     <script src="./app.js" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#downloads">Перейти к загрузкам</a>
+    <a class="skip-link" href="#downloads">Skip to downloads</a>
 
     <header class="site-header">
-      <nav class="nav" aria-label="Основная навигация">
-        <a class="brand" href="https://github.com/Anatolt/meetily" aria-label="Meetily Dark Theme на GitHub">
+      <nav class="nav" aria-label="Main navigation">
+        <a
+          class="brand"
+          href="https://github.com/Zackriya-Solutions/meetily"
+          aria-label="Visit the original Meetily repository"
+        >
           <img src="./Meetily-6.png" alt="" width="40" height="40">
           <span>Meetily Dark</span>
         </a>
 
         <div class="nav-links">
-          <a href="#downloads">Загрузка</a>
-          <a href="#requirements">Требования</a>
-          <a href="#launch">Запуск</a>
+          <a href="#preview">Preview</a>
+          <a href="#downloads">Download</a>
+          <a href="#requirements">Requirements</a>
+          <a href="#launch">Install</a>
         </div>
 
         <fieldset class="theme-switcher">
-          <legend>Тема</legend>
+          <legend>Page theme</legend>
           <label>
             <input type="radio" name="theme" value="system">
-            <span>Система</span>
+            <span>System</span>
           </label>
           <label>
             <input type="radio" name="theme" value="light">
-            <span>Светлая</span>
+            <span>Light</span>
           </label>
           <label>
             <input type="radio" name="theme" value="dark">
-            <span>Темная</span>
+            <span>Dark</span>
           </label>
         </fieldset>
       </nav>
@@ -50,87 +66,128 @@
     <main>
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">Неофициальная сборка - dark-theme-0.4.0</p>
-          <h1 id="hero-title">Meetily Dark для macOS и Windows</h1>
+          <p class="eyebrow">Unofficial build · dark-theme-0.4.0</p>
+          <h1 id="hero-title">Meetily, now comfortable after dark.</h1>
           <p class="lead">
-            Легкая страница загрузки для экспериментальной сборки Meetily на основе ветки с
-            темной темой. Сборка опубликована отдельно от upstream-проекта и не является
-            официальным релизом Meetily.
+            A downloadable build of the privacy-first meeting assistant with a native three-way
+            appearance setting: follow your system, stay light, or switch to dark.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="#downloads">Скачать сборку</a>
-            <a class="button secondary" href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.0">
-              Открыть релиз
+            <a class="button primary" href="#downloads">Download for free</a>
+            <a
+              class="button secondary"
+              href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.0"
+            >
+              View the release
             </a>
           </div>
+          <p class="byline">
+            Builds and landing page prepared by
+            <a href="https://github.com/Anatolt">@Anatolt</a>.
+          </p>
         </div>
-        <div class="hero-visual">
-          <img src="./home.png" alt="Окно Meetily с рабочим экраном приложения">
-        </div>
+        <figure class="hero-visual">
+          <img
+            src="./meetily-dark-transcription.png"
+            alt="Meetily transcribing a recording in its dark interface"
+            width="2796"
+            height="1836"
+          >
+          <figcaption>Live transcription in Dark mode</figcaption>
+        </figure>
       </section>
 
       <section class="notice" aria-labelledby="notice-title">
         <div>
-          <h2 id="notice-title">Важно: это неофициальная сборка</h2>
+          <h2 id="notice-title">An independent, unsigned community build</h2>
           <p>
-            Пакеты подготовлены в форке <a href="https://github.com/Anatolt/meetily">Anatolt/meetily</a>.
-            Они не подписаны разработчиками upstream Meetily и предназначены для самостоятельной проверки.
+            This is not an official Meetily release. Review the
+            <a href="https://github.com/Anatolt/meetily">build source</a> and only install it if
+            you trust it. The original project is maintained at
+            <a href="https://github.com/Zackriya-Solutions/meetily">
+              Zackriya-Solutions/meetily</a>.
           </p>
         </div>
       </section>
 
+      <section id="preview" class="section preview" aria-labelledby="preview-title">
+        <div class="section-heading">
+          <p class="eyebrow">Your screen, your choice</p>
+          <h2 id="preview-title">Dark when you want it. Light when you don’t.</h2>
+          <p>
+            Choose Dark or Light explicitly, or select System and let Meetily follow your
+            operating-system appearance automatically.
+          </p>
+        </div>
+        <figure class="settings-preview">
+          <img
+            src="./meetily-theme-settings.png"
+            alt="Meetily Appearance settings showing System, Light, and Dark options"
+            width="2796"
+            height="1836"
+          >
+          <figcaption>
+            The Appearance control lives in Settings → General and can be changed at any time.
+          </figcaption>
+        </figure>
+      </section>
+
       <section id="downloads" class="section" aria-labelledby="downloads-title">
         <div class="section-heading">
-          <p class="eyebrow">Фиксированный тег релиза</p>
-          <h2 id="downloads-title">Загрузка</h2>
+          <p class="eyebrow">Release dark-theme-0.4.0</p>
+          <h2 id="downloads-title">Choose your download</h2>
           <p>
-            Все ссылки указывают на GitHub Release
-            <a href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.0">dark-theme-0.4.0</a>.
+            Files are hosted as permanent assets in the
+            <a href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.0">
+              GitHub Release</a>. Checksums are available in
+            <a
+              href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.0/SHA256SUMS.txt"
+            >SHA256SUMS.txt</a>.
           </p>
         </div>
 
         <div class="download-grid">
-          <article class="download-card">
+          <article class="download-card featured">
             <div>
               <p class="platform">macOS</p>
-              <h3>Apple Silicon</h3>
-              <p>DMG-образ для компьютеров Mac с Apple Silicon.</p>
+              <h3>Apple Silicon DMG</h3>
+              <p>For Macs powered by Apple M-series processors.</p>
             </div>
             <a
               class="download-link"
               href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.0/meetily-dark-0.4.0-macos-arm64.dmg"
             >
-              Скачать .dmg
+              Download for macOS
             </a>
             <code>meetily-dark-0.4.0-macos-arm64.dmg</code>
           </article>
 
-          <article class="download-card">
+          <article class="download-card featured">
             <div>
               <p class="platform">Windows</p>
               <h3>Setup EXE</h3>
-              <p>Установщик для 64-битной Windows.</p>
+              <p>The recommended installer for most 64-bit Windows PCs.</p>
             </div>
             <a
               class="download-link"
               href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.0/meetily-dark-0.4.0-windows-x64-setup.exe"
             >
-              Скачать .exe
+              Download for Windows
             </a>
             <code>meetily-dark-0.4.0-windows-x64-setup.exe</code>
           </article>
 
           <article class="download-card">
             <div>
-              <p class="platform">Windows</p>
-              <h3>MSI пакет</h3>
-              <p>Альтернативный установщик для 64-битной Windows.</p>
+              <p class="platform">Windows · alternative</p>
+              <h3>MSI package</h3>
+              <p>For managed deployment and Windows Installer workflows.</p>
             </div>
             <a
-              class="download-link"
+              class="download-link secondary-download"
               href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.0/meetily-dark-0.4.0-windows-x64.msi"
             >
-              Скачать .msi
+              Download MSI
             </a>
             <code>meetily-dark-0.4.0-windows-x64.msi</code>
           </article>
@@ -139,50 +196,50 @@
 
       <section class="section split" aria-labelledby="features-title">
         <div>
-          <p class="eyebrow">Что внутри</p>
-          <h2 id="features-title">Коротко о сборке</h2>
+          <p class="eyebrow">What this build adds</p>
+          <h2 id="features-title">The same local-first Meetily, with a better fit.</h2>
           <p>
-            Meetily - приложение для локальной записи, транскрибации и подготовки заметок встреч.
-            Эта страница относится только к неофициальной сборке с изменениями темной темы из
-            upstream PR 575.
+            Meetily records, transcribes, and turns meetings into notes with processing designed
+            to stay on your device. This community build adds the appearance work from upstream
+            PR #575.
           </p>
         </div>
         <ul class="feature-list">
           <li>
-            <h3>Темная тема</h3>
-            <p>Сборка основана на работе из PR 575: tri-state предпочтение темы приложения.</p>
+            <h3>Three appearance modes</h3>
+            <p>System, Light, and Dark are available from one clear setting.</p>
           </li>
           <li>
-            <h3>Локальная обработка</h3>
-            <p>Meetily ориентирован на локальную транскрибацию и хранение данных на устройстве.</p>
+            <h3>Local-first workflow</h3>
+            <p>Keep meeting recordings, transcripts, and models on your computer.</p>
           </li>
           <li>
-            <h3>Открытый исходный код</h3>
-            <p>Код доступен в GitHub-репозитории, лицензия проекта - MIT.</p>
+            <h3>Open source</h3>
+            <p>Inspect the source, the theme changes, and the build workflow on GitHub.</p>
           </li>
         </ul>
       </section>
 
       <section id="requirements" class="section requirements" aria-labelledby="requirements-title">
         <div class="section-heading">
-          <p class="eyebrow">Перед установкой</p>
-          <h2 id="requirements-title">Системные требования</h2>
+          <p class="eyebrow">Before you install</p>
+          <h2 id="requirements-title">System requirements</h2>
         </div>
         <div class="requirements-grid">
           <div>
             <h3>macOS</h3>
             <ul>
-              <li>Mac с Apple Silicon.</li>
-              <li>Достаточно места для приложения и локальных моделей транскрибации.</li>
-              <li>Разрешения macOS на микрофон и запись системного звука, если они нужны вашему сценарию.</li>
+              <li>A Mac with Apple Silicon.</li>
+              <li>Storage for the application and local transcription models.</li>
+              <li>Microphone and audio permissions for the features you use.</li>
             </ul>
           </div>
           <div>
             <h3>Windows</h3>
             <ul>
-              <li>64-битная Windows.</li>
-              <li>Достаточно места для приложения и локальных моделей транскрибации.</li>
-              <li>Разрешение на доступ к микрофону и аудиоустройствам.</li>
+              <li>64-bit Windows on an Intel or AMD processor.</li>
+              <li>Storage for the application and local transcription models.</li>
+              <li>Microphone and audio-device permissions.</li>
             </ul>
           </div>
         </div>
@@ -190,28 +247,28 @@
 
       <section id="launch" class="section launch" aria-labelledby="launch-title">
         <div class="section-heading">
-          <p class="eyebrow">Неподписанное приложение</p>
-          <h2 id="launch-title">Как открыть после загрузки</h2>
+          <p class="eyebrow">Unsigned packages</p>
+          <h2 id="launch-title">Opening the app for the first time</h2>
           <p>
-            Сборка не подписана официальным сертификатом. Операционная система может показать
-            предупреждение при первом запуске.
+            These community packages are not signed with an Apple Developer or Windows
+            code-signing certificate, so your operating system may display a warning.
           </p>
         </div>
         <div class="steps">
           <article>
             <h3>macOS</h3>
             <ol>
-              <li>Откройте DMG и перенесите Meetily в папку Applications.</li>
-              <li>Если Gatekeeper блокирует запуск, откройте System Settings - Privacy &amp; Security.</li>
-              <li>Подтвердите запуск приложения, только если вы доверяете этой сборке.</li>
+              <li>Open the DMG and drag Meetily into Applications.</li>
+              <li>If blocked, open System Settings → Privacy &amp; Security.</li>
+              <li>Choose Open Anyway only after confirming you trust this build.</li>
             </ol>
           </article>
           <article>
             <h3>Windows</h3>
             <ol>
-              <li>Запустите EXE или MSI установщик.</li>
-              <li>Если SmartScreen показывает предупреждение, проверьте источник файла.</li>
-              <li>Продолжайте установку только если вы доверяете этой сборке.</li>
+              <li>Run the Setup EXE, or use the MSI for managed installation.</li>
+              <li>If SmartScreen appears, check the filename and GitHub source.</li>
+              <li>Continue only after confirming you trust this build.</li>
             </ol>
           </article>
         </div>
@@ -220,19 +277,23 @@
 
     <footer class="footer">
       <div>
-        <strong>Атрибуция</strong>
+        <strong>Credits</strong>
         <p>
-          Meetily создан upstream-проектом
-          <a href="https://github.com/Zackriya-Solutions/meetily">Zackriya-Solutions/meetily</a>.
-          Темная тема основана на PR 575 от
-          <a href="https://github.com/johnswords">johnswords</a>:
-          <a href="https://github.com/Zackriya-Solutions/meetily/pull/575">Add tri-state dark mode preference</a>.
+          Meetily is created and maintained by the
+          <a href="https://github.com/Zackriya-Solutions/meetily">
+            original Zackriya-Solutions/meetily project</a>.
+          The tri-state theme implementation comes from
+          <a href="https://github.com/Zackriya-Solutions/meetily/pull/575">PR #575</a>
+          by <a href="https://github.com/johnswords">johnswords</a>.
+          This downloadable build and landing page were prepared by
+          <a href="https://github.com/Anatolt">Anatolt</a>.
         </p>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/Anatolt/meetily/tree/agent/download-landing">Исходный код</a>
+        <a href="https://github.com/Zackriya-Solutions/meetily">Original repository</a>
+        <a href="https://github.com/Anatolt/meetily">Build source</a>
+        <a href="https://github.com/Anatolt">Prepared by Anatolt</a>
         <a href="https://github.com/Anatolt/meetily/blob/agent/download-landing/LICENSE.md">MIT License</a>
-        <a href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.0">Release dark-theme-0.4.0</a>
       </div>
     </footer>
   </body>
