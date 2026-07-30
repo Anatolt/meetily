@@ -474,7 +474,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
           run_install: false
 
       - name: Setup Node
@@ -666,6 +666,22 @@ jobs:
           path: frontend/src-tauri/binaries/ffmpeg-*.exe
           key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}
 
+      - name: Configure unsigned Tauri build
+        if: ${{ github.event.inputs.sign-build == 'false' }}
+        shell: pwsh
+        run: |
+          $configPath = "frontend/src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+
+          $config.bundle.createUpdaterArtifacts = $false
+
+          if ($config.bundle.windows.PSObject.Properties.Name -contains "signCommand") {
+            $config.bundle.windows.PSObject.Properties.Remove("signCommand")
+          }
+
+          $config | ConvertTo-Json -Depth 100 | Set-Content $configPath -Encoding UTF8
+          Write-Host "Disabled updater artifacts and Windows signing for unsigned build."
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -698,6 +714,7 @@ jobs:
             target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}/bundle/msi/*.msi.sig
             target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}/bundle/nsis/*.exe
             target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}/bundle/nsis/*.exe.sig
+          if-no-files-found: error
           retention-days: 30
 
       - name: Generate build summary
