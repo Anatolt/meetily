@@ -9,6 +9,12 @@ pub struct DatabaseManager {
 }
 
 impl DatabaseManager {
+    async fn run_migrations(pool: &SqlitePool) -> Result<()> {
+        let mut migrator = sqlx::migrate!("./migrations");
+        migrator.set_ignore_missing(true);
+        migrator.run(pool).await
+    }
+
     pub async fn new(tauri_db_path: &str, backend_db_path: &str) -> Result<Self> {
         if let Some(parent_dir) = Path::new(tauri_db_path).parent() {
             if !parent_dir.exists() {
@@ -32,7 +38,7 @@ impl DatabaseManager {
 
         let pool = SqlitePool::connect(tauri_db_path).await?;
 
-        sqlx::migrate!("./migrations").run(&pool).await?;
+        Self::run_migrations(&pool).await?;
 
         Ok(DatabaseManager { pool })
     }
