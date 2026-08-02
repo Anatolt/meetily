@@ -12,7 +12,7 @@ impl DatabaseManager {
     async fn run_migrations(pool: &SqlitePool) -> Result<()> {
         let mut migrator = sqlx::migrate!("./migrations");
         migrator.set_ignore_missing(true);
-        migrator.run(pool).await
+        migrator.run(pool).await.map_err(Into::into)
     }
 
     pub async fn new(tauri_db_path: &str, backend_db_path: &str) -> Result<Self> {
