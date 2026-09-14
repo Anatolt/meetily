@@ -39,7 +39,7 @@ export function EmptyStateSummary({
       </p>
 
       {error && (
-        <p role="alert" className="mb-4 max-w-md rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="mb-4 max-w-md rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
