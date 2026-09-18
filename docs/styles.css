@@ -354,6 +354,13 @@ h3 {
   padding-top: 6rem;
 }
 
+.preview-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
 .settings-preview {
   margin: 0;
   padding: clamp(0.5rem, 2vw, 1rem);
@@ -508,6 +515,7 @@ li + li {
   .hero,
   .split,
   .download-grid,
+  .preview-gallery,
   .requirements-grid,
   .steps,
   .footer {
