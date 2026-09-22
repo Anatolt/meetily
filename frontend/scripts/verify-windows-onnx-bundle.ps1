@@ -22,7 +22,6 @@ if (-not $msiInstaller) {
     throw "No MSI installer was found under $resolvedRoot"
 }
 
-$installers = @($nsisInstaller, $msiInstaller)
 $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
 if (-not $sevenZip) {
     $defaultSevenZip = "C:\Program Files\7-Zip\7z.exe"
@@ -40,19 +39,66 @@ $requiredResources = @(
     "onnxruntime-LICENSE.txt"
 )
 
-foreach ($installer in $installers) {
-    $listing = & $sevenZipPath l -slt $installer.FullName
-    if ($LASTEXITCODE -ne 0) {
-        throw "7-Zip failed to inspect $($installer.FullName)"
+$nsisListing = & $sevenZipPath l -slt $nsisInstaller.FullName
+if ($LASTEXITCODE -ne 0) {
+    throw "7-Zip failed to inspect $($nsisInstaller.FullName)"
+}
+$nsisListingText = $nsisListing -join [Environment]::NewLine
+foreach ($resource in $requiredResources) {
+    $escapedResource = [regex]::Escape($resource)
+    if ($nsisListingText -notmatch "(?m)^Path = (?:.*[\\/])?$escapedResource\r?$") {
+        throw "Missing required ONNX Runtime resource '$resource' in $($nsisInstaller.FullName)"
     }
-    $listingText = $listing -join [Environment]::NewLine
+}
+Write-Host "Verified ONNX Runtime resources in $($nsisInstaller.FullName)"
 
-    foreach ($resource in $requiredResources) {
-        $escapedResource = [regex]::Escape($resource)
-        if ($listingText -notmatch "(?m)^Path = (?:.*[\\/])?$escapedResource\r?$") {
-            throw "Missing required ONNX Runtime resource '$resource' in $($installer.FullName)"
+function Get-MsiFileNames {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $installer = $null
+    $database = $null
+    $view = $null
+    try {
+        $installer = New-Object -ComObject WindowsInstaller.Installer
+        $database = $installer.GetType().InvokeMember(
+            "OpenDatabase", "InvokeMethod", $null, $installer, @($Path, 0)
+        )
+        $view = $database.GetType().InvokeMember(
+            "OpenView", "InvokeMethod", $null, $database, @("SELECT ``FileName`` FROM ``File``")
+        )
+        $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null) | Out-Null
+
+        while ($true) {
+            $record = $view.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $view, $null)
+            if ($null -eq $record) {
+                break
+            }
+            try {
+                $record.GetType().InvokeMember("StringData", "GetProperty", $null, $record, 1)
+            } finally {
+                [Runtime.InteropServices.Marshal]::FinalReleaseComObject($record) | Out-Null
+            }
+        }
+    } finally {
+        if ($null -ne $view) {
+            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($view) | Out-Null
+        }
+        if ($null -ne $database) {
+            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($database) | Out-Null
+        }
+        if ($null -ne $installer) {
+            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) | Out-Null
         }
     }
-
-    Write-Host "Verified ONNX Runtime resources in $($installer.FullName)"
 }
+
+$msiFileNames = @(Get-MsiFileNames -Path $msiInstaller.FullName)
+foreach ($resource in $requiredResources) {
+    $found = $msiFileNames | Where-Object {
+        (($_ -split "\|")[-1]) -ieq $resource
+    }
+    if (-not $found) {
+        throw "Missing required ONNX Runtime resource '$resource' in $($msiInstaller.FullName)"
+    }
+}
+Write-Host "Verified ONNX Runtime resources in $($msiInstaller.FullName)"
