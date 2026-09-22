@@ -458,6 +458,11 @@ jobs:
           fi
 
       # Verification steps
+      - name: Verify bundled ONNX Runtime
+        if: contains(matrix.platform, 'windows')
+        shell: pwsh
+        run: frontend/scripts/verify-windows-onnx-bundle.ps1 -SearchRoot target
+
       - name: Verify build artifacts
         shell: bash
         run: |
