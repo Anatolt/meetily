@@ -99,9 +99,10 @@
 
       <section class="notice" aria-labelledby="notice-title">
         <div>
-          <h2 id="notice-title">An independent, unsigned community build</h2>
+          <h2 id="notice-title">An independent community build</h2>
           <p>
-            This is not an official Meetily release. Review the
+            This is not an official Meetily release. The macOS DMG is Developer ID signed and
+            Apple-notarized; the Windows installers remain unsigned. Review the
             <a href="https://github.com/Anatolt/meetily">build source</a> and only install it if
             you trust it. The original project is maintained at
             <a href="https://github.com/Zackriya-Solutions/meetily">
@@ -158,7 +159,9 @@
             >SHA256SUMS.txt</a>.
           </p>
           <p>
-            <strong>Build dates:</strong> macOS — September 16, 2026; Windows — August 26, 2026.
+            <strong>Artifact status:</strong> macOS — Developer ID signed and notarized on
+            October 12, 2026 (the exact build date is not independently established); Windows —
+            built August 26, 2026 and unsigned.
           </p>
         </div>
 
@@ -167,22 +170,29 @@
             <div>
               <p class="platform">macOS</p>
               <h3>Apple Silicon DMG</h3>
-              <p>For Macs powered by Apple M-series processors. Built September 16, 2026.</p>
+              <p>
+                For Macs powered by Apple M-series processors. Developer ID signed and
+                Apple-notarized; signature dated October 12, 2026.
+              </p>
             </div>
             <a
               class="download-link"
-              href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.1/meetily-dark-0.4.1-macos-arm64.dmg"
+              href="https://github.com/Anatolt/meetily/releases/download/dark-theme-0.4.1/meetily-dark-0.4.1-macos-aarch64.dmg"
             >
               Download for macOS
             </a>
-            <code>meetily-dark-0.4.1-macos-arm64.dmg</code>
+            <code>meetily-dark-0.4.1-macos-aarch64.dmg</code>
           </article>
 
           <article class="download-card featured">
             <div>
               <p class="platform">Windows</p>
-              <h3>Setup EXE</h3>
-              <p>The recommended installer for most 64-bit Windows PCs. Built August 26, 2026.</p>
+              <h3>Setup EXE (unsigned)</h3>
+              <p>
+                Legacy 0.4.1 installer, built August 26, 2026. It is missing ONNX Runtime;
+                Windows users should use
+                <a href="https://github.com/Anatolt/meetily/releases/tag/dark-theme-0.4.2">0.4.2</a>.
+              </p>
             </div>
             <a
               class="download-link"
@@ -196,8 +206,11 @@
           <article class="download-card">
             <div>
               <p class="platform">Windows · alternative</p>
-              <h3>MSI package</h3>
-              <p>For managed deployment and Windows Installer workflows. Built August 26, 2026.</p>
+              <h3>MSI package (unsigned)</h3>
+              <p>
+                Legacy 0.4.1 package for Windows Installer workflows, built August 26, 2026.
+                It has the same missing ONNX Runtime issue; use 0.4.2 instead.
+              </p>
             </div>
             <a
               class="download-link secondary-download"
@@ -263,11 +276,11 @@
 
       <section id="launch" class="section launch" aria-labelledby="launch-title">
         <div class="section-heading">
-          <p class="eyebrow">Unsigned packages</p>
+          <p class="eyebrow">Package signing status</p>
           <h2 id="launch-title">Opening the app for the first time</h2>
           <p>
-            These community packages are not signed with an Apple Developer or Windows
-            code-signing certificate, so your operating system may display a warning.
+            The macOS app and DMG are signed with a Developer ID certificate and notarized by
+            Apple. The Windows packages are not code-signed and may display a SmartScreen warning.
           </p>
         </div>
         <div class="steps">
@@ -275,8 +288,8 @@
             <h3>macOS</h3>
             <ol>
               <li>Open the DMG and drag Meetily into Applications.</li>
-              <li>If blocked, open System Settings → Privacy &amp; Security.</li>
-              <li>Choose Open Anyway only after confirming you trust this build.</li>
+              <li>Launch Meetily Dark from Applications.</li>
+              <li>macOS should identify the developer and accept the notarized app.</li>
             </ol>
           </article>
           <article>
