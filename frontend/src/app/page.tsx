@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { RecordingControls } from '@/components/RecordingControls';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
@@ -190,12 +189,7 @@ export default function Home() {
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950"
-    >
+    <div className="flex flex-col h-screen bg-muted/50">
       {/* All Modals supported*/}
       <SettingsModals
         modals={modals}
@@ -231,7 +225,7 @@ export default function Home() {
                 }}
               >
                 <div className="w-2/3 max-w-[750px] flex justify-center">
-                  <div className="bg-white dark:bg-gray-900 rounded-full shadow-lg flex items-center border border-gray-200 dark:border-gray-800">
+                  <div className="bg-card rounded-full shadow-lg flex items-center">
                     <RecordingControls
                       isRecording={recordingState.isRecording}
                       onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
@@ -260,6 +254,6 @@ export default function Home() {
           sidebarCollapsed={sidebarCollapsed}
         />
       </div>
-    </motion.div>
+    </div>
   );
 }

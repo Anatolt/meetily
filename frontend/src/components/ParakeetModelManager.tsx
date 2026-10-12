@@ -4,12 +4,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  ParakeetModelInfo,
   ModelStatus,
   ParakeetAPI,
+  ParakeetDownloadProgressEvent,
+  ParakeetModelInfo,
+  formatFileSize,
   getModelDisplayInfo,
-  getModelDisplayName,
-  formatFileSize
+  getModelDisplayName
 } from '../lib/parakeet';
 
 interface ParakeetModelManagerProps {
@@ -29,31 +30,43 @@ export function ParakeetModelManager({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [listenersReady, setListenersReady] = useState(false);
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
+  const [cancellingModels, setCancellingModels] = useState<Set<string>>(new Set());
 
   // Refs for stable callbacks
   const onModelSelectRef = useRef(onModelSelect);
   const autoSaveRef = useRef(autoSave);
 
-  // Progress throttle map to prevent rapid updates
-  const progressThrottleRef = useRef<Map<string, { progress: number; timestamp: number }>>(new Map());
-
-  // Update refs when props change
   useEffect(() => {
     onModelSelectRef.current = onModelSelect;
     autoSaveRef.current = autoSave;
   }, [onModelSelect, autoSave]);
 
+  // Progress throttle map to prevent rapid updates
+  const progressThrottleRef = useRef<Map<string, { progress: number; timestamp: number }>>(new Map());
+  const latestStatusByModelRef = useRef<Map<string, ModelStatus>>(new Map());
+  const clearCancellingModel = (modelName: string) => {
+    setCancellingModels(prev => {
+      const next = new Set(prev);
+      next.delete(modelName);
+      return next;
+    });
+  };
+
   // Initialize and load models
   useEffect(() => {
-    if (initialized) return;
+    if (initialized || !listenersReady) return;
 
     const initializeModels = async () => {
       try {
         setLoading(true);
         await ParakeetAPI.init();
         const modelList = await ParakeetAPI.getAvailableModels();
-        setModels(modelList);
+        setModels(modelList.map(model => ({
+          ...model,
+          status: latestStatusByModelRef.current.get(model.name) ?? model.status
+        })));
 
         setInitialized(true);
       } catch (err) {
@@ -69,129 +82,176 @@ export function ParakeetModelManager({
     };
 
     initializeModels();
-  }, [initialized, selectedModel, onModelSelect]);
+  }, [initialized, listenersReady, selectedModel, onModelSelect]);
 
   // Set up event listeners for download progress
   useEffect(() => {
-    let unlistenProgress: (() => void) | null = null;
-    let unlistenComplete: (() => void) | null = null;
-    let unlistenError: (() => void) | null = null;
+    let disposed = false;
+    let registeredUnlisteners: Array<() => void> = [];
 
     const setupListeners = async () => {
       console.log('[ParakeetModelManager] Setting up event listeners...');
 
-      // Download progress with throttling
-      unlistenProgress = await listen<{ modelName: string; progress: number }>(
-        'parakeet-model-download-progress',
-        (event) => {
-          const { modelName, progress } = event.payload;
-          const now = Date.now();
-          const throttleData = progressThrottleRef.current.get(modelName);
+      const registrations = await Promise.allSettled([
+        listen<ParakeetDownloadProgressEvent>(
+          'parakeet-model-download-progress',
+          (event) => {
+            const { modelName, progress, status } = event.payload;
+            if (status === 'cancelled') {
+              latestStatusByModelRef.current.set(modelName, 'Missing');
+              progressThrottleRef.current.delete(modelName);
+              clearCancellingModel(modelName);
+              setDownloadingModels(prev => {
+                const next = new Set(prev);
+                next.delete(modelName);
+                return next;
+              });
+              setModels(prevModels =>
+                prevModels.map(model =>
+                  model.name === modelName
+                    ? { ...model, status: 'Missing' as ModelStatus }
+                    : model
+                )
+              );
+              toast.info(`${getModelDisplayName(modelName)} download cancelled`, {
+                duration: 3000
+              });
+              return;
+            }
 
-          // Throttle: only update if 300ms passed OR progress jumped by 5%+
-          const shouldUpdate = !throttleData ||
-            now - throttleData.timestamp > 300 ||
-            Math.abs(progress - throttleData.progress) >= 5;
+            const modelStatus: ModelStatus = status === 'completed'
+              ? 'Available'
+              : { Downloading: { progress } };
+            latestStatusByModelRef.current.set(modelName, modelStatus);
 
-          if (shouldUpdate) {
-            console.log(`[ParakeetModelManager] Progress update for ${modelName}: ${progress}%`);
-            progressThrottleRef.current.set(modelName, { progress, timestamp: now });
+            const now = Date.now();
+            const throttleData = progressThrottleRef.current.get(modelName);
+            const shouldUpdate = !throttleData ||
+              now - throttleData.timestamp > 300 ||
+              Math.abs(progress - throttleData.progress) >= 5;
+
+            if (shouldUpdate) {
+              console.log(`[ParakeetModelManager] Progress update for ${modelName}: ${progress}%`);
+              progressThrottleRef.current.set(modelName, { progress, timestamp: now });
+              setModels(prevModels =>
+                prevModels.map(model =>
+                  model.name === modelName
+                    ? { ...model, status: modelStatus }
+                    : model
+                )
+              );
+            }
+          }
+        ),
+        listen<{ modelName: string }>(
+          'parakeet-model-download-complete',
+          (event) => {
+            const { modelName } = event.payload;
+            const displayInfo = getModelDisplayInfo(modelName);
+            const displayName = displayInfo?.friendlyName || modelName;
+            latestStatusByModelRef.current.set(modelName, 'Available');
+            clearCancellingModel(modelName);
 
             setModels(prevModels =>
               prevModels.map(model =>
                 model.name === modelName
-                  ? { ...model, status: { Downloading: progress } as ModelStatus }
+                  ? { ...model, status: 'Available' as ModelStatus }
                   : model
               )
             );
-          }
-        }
-      );
 
-      // Download complete
-      unlistenComplete = await listen<{ modelName: string }>(
-        'parakeet-model-download-complete',
-        (event) => {
-          const { modelName } = event.payload;
-          const displayInfo = getModelDisplayInfo(modelName);
-          const displayName = displayInfo?.friendlyName || modelName;
+            setDownloadingModels(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(modelName);
+              return newSet;
+            });
 
-          setModels(prevModels =>
-            prevModels.map(model =>
-              model.name === modelName
-                ? { ...model, status: 'Available' as ModelStatus }
-                : model
-            )
-          );
+            // Clean up throttle data
+            progressThrottleRef.current.delete(modelName);
 
-          setDownloadingModels(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(modelName);
-            return newSet;
-          });
+            toast.success(`${displayInfo?.icon || '✓'} ${displayName} ready!`, {
+              description: 'Model downloaded and ready to use',
+              duration: 4000
+            });
 
-          // Clean up throttle data
-          progressThrottleRef.current.delete(modelName);
-
-          toast.success(`${displayInfo?.icon || '✓'} ${displayName} ready!`, {
-            description: 'Model downloaded and ready to use',
-            duration: 4000
-          });
-
-          // Auto-select after download using stable refs
-          if (onModelSelectRef.current) {
-            onModelSelectRef.current(modelName);
-            if (autoSaveRef.current) {
-              saveModelSelection(modelName);
+            // Auto-select after download using stable refs
+            if (onModelSelectRef.current) {
+              onModelSelectRef.current(modelName);
+              if (autoSaveRef.current) {
+                saveModelSelection(modelName);
+              }
             }
           }
-        }
+        ),
+        listen<{ modelName: string; error: string }>(
+          'parakeet-model-download-error',
+          (event) => {
+            const { modelName, error } = event.payload;
+            const displayInfo = getModelDisplayInfo(modelName);
+            const displayName = displayInfo?.friendlyName || modelName;
+            latestStatusByModelRef.current.set(modelName, { Error: error });
+            clearCancellingModel(modelName);
+
+            setModels(prevModels =>
+              prevModels.map(model =>
+                model.name === modelName
+                  ? { ...model, status: { Error: error } as ModelStatus }
+                  : model
+              )
+            );
+
+            setDownloadingModels(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(modelName);
+              return newSet;
+            });
+
+            // Clean up throttle data
+            progressThrottleRef.current.delete(modelName);
+
+            toast.error(`Failed to download ${displayName}`, {
+              description: error,
+              duration: 6000,
+              action: {
+                label: 'Retry',
+                onClick: () => downloadModel(modelName)
+              }
+            });
+          }
+        )
+      ]);
+
+      const unlisteners = registrations.flatMap(result =>
+        result.status === 'fulfilled' ? [result.value] : []
+      );
+      const failedRegistration = registrations.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected'
       );
 
-      // Download error
-      unlistenError = await listen<{ modelName: string; error: string }>(
-        'parakeet-model-download-error',
-        (event) => {
-          const { modelName, error } = event.payload;
-          const displayInfo = getModelDisplayInfo(modelName);
-          const displayName = displayInfo?.friendlyName || modelName;
-
-          setModels(prevModels =>
-            prevModels.map(model =>
-              model.name === modelName
-                ? { ...model, status: { Error: error } as ModelStatus }
-                : model
-            )
-          );
-
-          setDownloadingModels(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(modelName);
-            return newSet;
-          });
-
-          // Clean up throttle data
-          progressThrottleRef.current.delete(modelName);
-
-          toast.error(`Failed to download ${displayName}`, {
-            description: error,
-            duration: 6000,
-            action: {
-              label: 'Retry',
-              onClick: () => downloadModel(modelName)
-            }
-          });
+      if (disposed || failedRegistration) {
+        unlisteners.forEach(unlisten => unlisten());
+        if (!disposed && failedRegistration) {
+          const message = failedRegistration.reason instanceof Error
+            ? failedRegistration.reason.message
+            : typeof failedRegistration.reason === 'string'
+              ? failedRegistration.reason
+              : 'Failed to listen for Parakeet model updates';
+          setError(message);
+          setLoading(false);
         }
-      );
+        return;
+      }
+
+      registeredUnlisteners = unlisteners;
+      setListenersReady(true);
     };
 
     setupListeners();
 
     return () => {
       console.log('[ParakeetModelManager] Cleaning up event listeners...');
-      if (unlistenProgress) unlistenProgress();
-      if (unlistenComplete) unlistenComplete();
-      if (unlistenError) unlistenError();
+      disposed = true;
+      registeredUnlisteners.forEach(unlisten => unlisten());
     };
   }, []); // Empty dependency array - listeners use refs for stable callbacks
 
@@ -211,30 +271,17 @@ export function ParakeetModelManager({
     const displayInfo = getModelDisplayInfo(modelName);
     const displayName = displayInfo?.friendlyName || modelName;
 
+    setCancellingModels(prev => new Set([...prev, modelName]));
     try {
-      await ParakeetAPI.cancelDownload(modelName);
-
-      setDownloadingModels(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(modelName);
-        return newSet;
-      });
-
-      setModels(prevModels =>
-        prevModels.map(model =>
-          model.name === modelName
-            ? { ...model, status: 'Missing' as ModelStatus }
-            : model
-        )
-      );
-
-      // Clean up throttle data
-      progressThrottleRef.current.delete(modelName);
-
-      toast.info(`${displayName} download cancelled`, {
-        duration: 3000
-      });
+      const outcome = await ParakeetAPI.cancelDownload(modelName);
+      if (outcome === 'pending') {
+        toast.info(`Cancelling ${displayName}...`, {
+          description: 'The download is still shutting down. Retry will be available when cleanup completes.',
+          duration: 4000
+        });
+      }
     } catch (err) {
+      clearCancellingModel(modelName);
       console.error('Failed to cancel download:', err);
       toast.error('Failed to cancel download', {
         description: err instanceof Error ? err.message : 'Unknown error',
@@ -244,7 +291,8 @@ export function ParakeetModelManager({
   };
 
   const downloadModel = async (modelName: string) => {
-    if (downloadingModels.has(modelName)) return;
+    if (downloadingModels.has(modelName) || cancellingModels.has(modelName)) return;
+    clearCancellingModel(modelName);
 
     const displayInfo = getModelDisplayInfo(modelName);
     const displayName = displayInfo?.friendlyName || modelName;
@@ -255,7 +303,7 @@ export function ParakeetModelManager({
       setModels(prevModels =>
         prevModels.map(model =>
           model.name === modelName
-            ? { ...model, status: { Downloading: 0 } as ModelStatus }
+            ? { ...model, status: { Downloading: { progress: 0 } } as ModelStatus }
             : model
         )
       );
@@ -332,8 +380,8 @@ export function ParakeetModelManager({
     return (
       <div className={`space-y-3 ${className}`}>
         <div className="animate-pulse space-y-3">
-          <div className="h-20 bg-gray-100 dark:bg-slate-800 rounded-lg"></div>
-          <div className="h-20 bg-gray-100 dark:bg-slate-800 rounded-lg"></div>
+          <div className="h-20 bg-muted rounded-lg"></div>
+          <div className="h-20 bg-muted rounded-lg"></div>
         </div>
       </div>
     );
@@ -341,9 +389,9 @@ export function ParakeetModelManager({
 
   if (error) {
     return (
-      <div className={`bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4 ${className}`}>
-        <p className="text-sm text-red-800 dark:text-red-300">Failed to load models</p>
-        <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>
+      <div className={`bg-destructive/10 border border-destructive/30 rounded-lg p-4 ${className}`}>
+        <p className="text-sm text-destructive">Failed to load models</p>
+        <p className="text-xs text-destructive mt-1">{error}</p>
       </div>
     );
   }
@@ -372,6 +420,7 @@ export function ParakeetModelManager({
           onCancel={() => cancelDownload(recommendedModel.name)}
           onDelete={() => deleteModel(recommendedModel.name)}
           isDownloading={downloadingModels.has(recommendedModel.name)}
+          isCancelling={cancellingModels.has(recommendedModel.name)}
         />
       )}
 
@@ -393,6 +442,7 @@ export function ParakeetModelManager({
               onCancel={() => cancelDownload(model.name)}
               onDelete={() => deleteModel(model.name)}
               isDownloading={downloadingModels.has(model.name)}
+              isCancelling={cancellingModels.has(model.name)}
             />
           ))}
         </div>
@@ -403,7 +453,7 @@ export function ParakeetModelManager({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-gray-500 dark:text-slate-400 text-center pt-2"
+          className="text-xs text-muted-foreground text-center pt-2"
         >
           Using {getModelDisplayName(selectedModel)} for transcription
         </motion.div>
@@ -422,6 +472,7 @@ interface ModelCardProps {
   onCancel: () => void;
   onDelete: () => void;
   isDownloading: boolean;
+  isCancelling: boolean;
 }
 
 function ModelCard({
@@ -432,7 +483,8 @@ function ModelCard({
   onDownload,
   onCancel,
   onDelete,
-  isDownloading
+  isDownloading,
+  isCancelling
 }: ModelCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const displayInfo = getModelDisplayInfo(model.name);
@@ -446,8 +498,9 @@ function ModelCard({
   const isCorrupted = typeof model.status === 'object' && 'Corrupted' in model.status;
   const downloadProgress =
     typeof model.status === 'object' && 'Downloading' in model.status
-      ? model.status.Downloading
+      ? model.status.Downloading.progress
       : null;
+  const displayedProgress = downloadProgress ?? 0;
 
   return (
     <motion.div
@@ -459,10 +512,10 @@ function ModelCard({
       className={`
         relative rounded-lg border-2 transition-all cursor-pointer
         ${isSelected && isAvailable
-          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+          ? 'border-info bg-info/10'
           : isAvailable
-            ? 'border-gray-200 hover:border-gray-300 bg-white dark:bg-slate-900 dark:border-slate-700 dark:hover:border-slate-600'
-            : 'border-gray-200 bg-gray-50 dark:bg-slate-800 dark:border-slate-700'
+            ? 'border-border hover:border-muted-foreground/40 bg-card'
+            : 'border-border bg-muted/50'
         }
         ${isAvailable ? '' : 'cursor-default'}
       `}
@@ -472,7 +525,7 @@ function ModelCard({
     >
       {/* Recommended Badge */}
       {isRecommended && (
-        <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+        <div className="absolute -top-2 -right-2 bg-info text-primary-foreground text-xs px-2 py-0.5 rounded-full font-medium">
           Recommended
         </div>
       )}
@@ -483,12 +536,12 @@ function ModelCard({
             {/* Model Name */}
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl">{icon}</span>
-              <h3 className="font-semibold text-gray-900 dark:text-slate-100">{displayName}</h3>
+              <h3 className="font-semibold text-foreground">{displayName}</h3>
               {isSelected && isAvailable && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
+                  className="bg-info text-primary-foreground px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
                 >
                   ✓
                 </motion.span>
@@ -496,15 +549,15 @@ function ModelCard({
             </div>
 
             {/* Tagline */}
-            <p className="text-sm text-gray-600 dark:text-slate-300 ml-9">{tagline}</p>
+            <p className="text-sm text-muted-foreground ml-9">{tagline}</p>
           </div>
 
           {/* Status/Action */}
           <div className="ml-4 flex items-center gap-2">
-            {isAvailable && (
+            {isAvailable && !isCancelling && (
               <>
-                <div className="flex items-center gap-1.5 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex items-center gap-1.5 text-success-text">
+                  <div className="w-2 h-2 bg-success rounded-full"></div>
                   <span className="text-xs font-medium">Ready</span>
                 </div>
                 <AnimatePresence>
@@ -518,7 +571,7 @@ function ModelCard({
                         e.stopPropagation();
                         onDelete();
                       }}
-                      className="text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors p-1"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
                       title="Delete model to free up space"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -530,38 +583,38 @@ function ModelCard({
               </>
             )}
 
-            {isMissing && (
+            {isMissing && !isCancelling && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onDownload();
                 }}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                className="bg-info text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-info/90 transition-colors"
               >
                 Download
               </button>
             )}
 
-            {downloadProgress === null && isError && (
+            {downloadProgress === null && isError && !isCancelling && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onDownload();
                 }}
-                className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                className="bg-destructive text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-destructive/90 transition-colors"
               >
                 Retry
               </button>
             )}
 
-            {isCorrupted && (
+            {isCorrupted && !isCancelling && (
               <div className="flex gap-2">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="bg-orange-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
+                  className="bg-warning-strong text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-warning-strong/90 transition-colors"
                 >
                   Delete
                 </button>
@@ -570,7 +623,7 @@ function ModelCard({
                     e.stopPropagation();
                     onDownload();
                   }}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="bg-info text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-info/90 transition-colors"
                 >
                   Re-download
                 </button>
@@ -580,41 +633,47 @@ function ModelCard({
         </div>
 
         {/* Full-width Download Progress Bar - PROMINENT */}
-        {downloadProgress !== null && (
+        {(downloadProgress !== null || isCancelling) && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700"
+            className="mt-3 pt-3 border-t border-border"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-blue-600">Downloading...</span>
-                <span className="text-sm font-semibold text-blue-600">{Math.round(downloadProgress)}%</span>
+                <span className="text-sm font-medium text-info-text">Downloading...</span>
+                <span className="text-sm font-semibold text-info-text">{Math.round(downloadProgress ?? 0)}%</span>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCancel();
-                }}
-                className="text-xs text-gray-600 dark:text-slate-300 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
-                title="Cancel download"
-              >
-                Cancel
-              </button>
+              {isCancelling ? (
+                <span className="text-xs text-muted-foreground font-medium px-2 py-1">
+                  Cancellation requested
+                </span>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel();
+                  }}
+                  className="text-xs text-muted-foreground hover:text-destructive font-medium transition-colors px-2 py-1 rounded hover:bg-destructive/10"
+                  title="Cancel download"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-            <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                className="h-full bg-info rounded-full"
                 initial={{ width: 0 }}
-                animate={{ width: `${downloadProgress}%` }}
+                animate={{ width: `${displayedProgress}%` }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               />
             </div>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {model.size_mb ? (
                 <>
-                  {formatFileSize(model.size_mb * downloadProgress / 100)} / {formatFileSize(model.size_mb)}
+                  {formatFileSize(model.size_mb * displayedProgress / 100)} / {formatFileSize(model.size_mb)}
                 </>
               ) : (
                 'Downloading...'

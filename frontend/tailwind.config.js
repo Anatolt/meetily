@@ -8,10 +8,15 @@ module.exports = {
   ],
   theme: {
   	extend: {
-  		fontFamily: {
-  			sans: [
-  				'var(--font-source-sans-3)'
-  			]
+		fontFamily: {
+			sans: [
+				'var(--font-source-sans-3, ui-sans-serif)',
+				'system-ui',
+				'-apple-system',
+				'BlinkMacSystemFont',
+				'Segoe UI',
+				'sans-serif'
+			]
   		},
   		colors: {
   			background: 'hsl(var(--background))',
@@ -44,10 +49,37 @@ module.exports = {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
-  			destructive: {
-  				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
-  			},
+			destructive: {
+				DEFAULT: 'hsl(var(--destructive))',
+				foreground: 'hsl(var(--destructive-foreground))'
+			},
+      info: {
+        DEFAULT: 'hsl(var(--info))',
+        foreground: 'hsl(var(--info-foreground))',
+        text: 'hsl(var(--info-text))'
+      },
+      success: {
+        DEFAULT: 'hsl(var(--success))',
+        foreground: 'hsl(var(--success-foreground))',
+        text: 'hsl(var(--success-text))'
+      },
+      warning: {
+        DEFAULT: 'hsl(var(--warning))',
+        foreground: 'hsl(var(--warning-foreground))',
+        text: 'hsl(var(--warning-text))'
+      },
+      'warning-strong': {
+        DEFAULT: 'hsl(var(--warning-strong))',
+        foreground: 'hsl(var(--warning-strong-foreground))'
+      },
+      recording: {
+        DEFAULT: 'hsl(var(--recording))',
+        foreground: 'hsl(var(--recording-foreground))'
+      },
+      overlay: {
+        DEFAULT: 'hsl(var(--overlay))',
+        foreground: 'hsl(var(--overlay-foreground))'
+      },
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',
@@ -85,5 +117,9 @@ module.exports = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography"),
+    require("@tailwindcss/container-queries"),
+  ],
 }

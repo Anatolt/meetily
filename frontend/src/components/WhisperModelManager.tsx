@@ -33,6 +33,7 @@ export function ModelManager({
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
+  const [cancellingModels, setCancellingModels] = useState<Set<string>>(new Set());
   const [hasUserSelection, setHasUserSelection] = useState(false);
 
   // Refs for stable callbacks
@@ -41,6 +42,8 @@ export function ModelManager({
 
   // Progress throttle map to prevent rapid updates
   const progressThrottleRef = useRef<Map<string, { progress: number; timestamp: number }>>(new Map());
+  const cancellationReconciliationModelsRef = useRef<Set<string>>(new Set());
+  const cancellationReconcileTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Update refs when props change
   useEffect(() => {
@@ -65,6 +68,70 @@ export function ModelManager({
       localStorage.setItem('downloading-models', JSON.stringify(Array.from(newSet)));
       return newSet;
     });
+  };
+
+  const clearCancellationReconciliation = (modelName: string) => {
+    cancellationReconciliationModelsRef.current.delete(modelName);
+    const timer = cancellationReconcileTimersRef.current.get(modelName);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      cancellationReconcileTimersRef.current.delete(modelName);
+    }
+    setCancellingModels(prev => {
+      const next = new Set(prev);
+      next.delete(modelName);
+      return next;
+    });
+  };
+
+  const reconcileCancellation = (modelName: string) => {
+    if (cancellationReconciliationModelsRef.current.has(modelName)) return;
+
+    cancellationReconciliationModelsRef.current.add(modelName);
+    setCancellingModels(prev => new Set([...prev, modelName]));
+
+    const scheduleNextCheck = () => {
+      if (!cancellationReconciliationModelsRef.current.has(modelName)) return;
+      const timer = setTimeout(() => {
+        cancellationReconcileTimersRef.current.delete(modelName);
+        void reconcile();
+      }, 1000);
+      cancellationReconcileTimersRef.current.set(modelName, timer);
+    };
+
+    const reconcile = async () => {
+      try {
+        const modelList = await WhisperAPI.getAvailableModels();
+        if (!cancellationReconciliationModelsRef.current.has(modelName)) return;
+
+        const model = modelList.find(candidate => candidate.name === modelName);
+
+        const isStillDownloading = typeof model?.status === 'object' && 'Downloading' in model.status;
+        if (model && !isStillDownloading) {
+          clearCancellationReconciliation(modelName);
+          updateDownloadingModels(prev => {
+            const next = new Set(prev);
+            next.delete(modelName);
+            return next;
+          });
+          setModels(modelList);
+          progressThrottleRef.current.delete(modelName);
+          toast.info(
+            model.status === 'Available'
+              ? `${getDisplayName(modelName)} download completed before cancellation`
+              : `${getDisplayName(modelName)} download cancelled`,
+            { duration: 3000 }
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to reconcile pending download cancellation:', err);
+      }
+
+      scheduleNextCheck();
+    };
+
+    void reconcile();
   };
 
   // Initialize models
@@ -96,7 +163,7 @@ export function ModelManager({
               });
               return model;
             } else {
-              return { ...model, status: { Downloading: 0 } as ModelStatus };
+              return { ...model, status: { Downloading: { progress: 0 } } as ModelStatus };
             }
           }
           return model;
@@ -148,7 +215,7 @@ export function ModelManager({
             setModels(prevModels =>
               prevModels.map(model =>
                 model.name === modelName
-                  ? { ...model, status: { Downloading: progress } as ModelStatus }
+                  ? { ...model, status: { Downloading: { progress } } as ModelStatus }
                   : model
               )
             );
@@ -164,6 +231,8 @@ export function ModelManager({
           const model = models.find(m => m.name === modelName);
           const displayName = getDisplayName(modelName);
 
+          clearCancellationReconciliation(modelName);
+
           setModels(prevModels =>
             prevModels.map(model =>
               model.name === modelName
@@ -172,7 +241,7 @@ export function ModelManager({
             )
           );
 
-          setDownloadingModels(prev => {
+          updateDownloadingModels(prev => {
             const newSet = new Set(prev);
             newSet.delete(modelName);
             return newSet;
@@ -203,6 +272,8 @@ export function ModelManager({
           const { modelName, error } = event.payload;
           const displayName = getDisplayName(modelName);
 
+          clearCancellationReconciliation(modelName);
+
           setModels(prevModels =>
             prevModels.map(model =>
               model.name === modelName
@@ -211,7 +282,7 @@ export function ModelManager({
             )
           );
 
-          setDownloadingModels(prev => {
+          updateDownloadingModels(prev => {
             const newSet = new Set(prev);
             newSet.delete(modelName);
             return newSet;
@@ -239,6 +310,11 @@ export function ModelManager({
       if (unlistenProgress) unlistenProgress();
       if (unlistenComplete) unlistenComplete();
       if (unlistenError) unlistenError();
+      for (const timer of cancellationReconcileTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      cancellationReconcileTimersRef.current.clear();
+      cancellationReconciliationModelsRef.current.clear();
     };
   }, []); // Empty dependency array - listeners use refs for stable callbacks
 
@@ -258,28 +334,19 @@ export function ModelManager({
     const displayName = getDisplayName(modelName);
 
     try {
-      await WhisperAPI.cancelDownload(modelName);
+      const outcome = await WhisperAPI.cancelDownload(modelName);
+      if (outcome === 'pending') {
+        reconcileCancellation(modelName);
+        toast.info(`Cancelling ${displayName}...`, {
+          description: 'The download is still shutting down. Retry will be available when cleanup completes.',
+          duration: 4000
+        });
+        return;
+      }
 
-      updateDownloadingModels(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(modelName);
-        return newSet;
-      });
-
-      setModels(prevModels =>
-        prevModels.map(model =>
-          model.name === modelName
-            ? { ...model, status: 'Missing' as ModelStatus }
-            : model
-        )
-      );
-
-      // Clean up throttle data
-      progressThrottleRef.current.delete(modelName);
-
-      toast.info(`${displayName} download cancelled`, {
-        duration: 3000
-      });
+      // A worker can finish between the user's click and the cancellation command
+      // acquiring its owner. Reconcile instead of overwriting a valid Available state.
+      reconcileCancellation(modelName);
     } catch (err) {
       console.error('Failed to cancel download:', err);
       toast.error('Failed to cancel download', {
@@ -292,6 +359,8 @@ export function ModelManager({
   const downloadModel = async (modelName: string) => {
     if (downloadingModels.has(modelName)) return;
 
+    clearCancellationReconciliation(modelName);
+
     const displayName = getDisplayName(modelName);
 
     try {
@@ -300,7 +369,7 @@ export function ModelManager({
       setModels(prevModels =>
         prevModels.map(model =>
           model.name === modelName
-            ? { ...model, status: { Downloading: 0 } as ModelStatus }
+            ? { ...model, status: { Downloading: { progress: 0 } } as ModelStatus }
             : model
         )
       );
@@ -393,9 +462,9 @@ export function ModelManager({
     return (
       <div className={`space-y-3 ${className}`}>
         <div className="animate-pulse space-y-3">
-          <div className="h-20 bg-gray-100 dark:bg-slate-800 rounded-lg"></div>
-          <div className="h-20 bg-gray-100 dark:bg-slate-800 rounded-lg"></div>
-          <div className="h-20 bg-gray-100 dark:bg-slate-800 rounded-lg"></div>
+          <div className="h-20 bg-muted rounded-lg"></div>
+          <div className="h-20 bg-muted rounded-lg"></div>
+          <div className="h-20 bg-muted rounded-lg"></div>
         </div>
       </div>
     );
@@ -403,9 +472,9 @@ export function ModelManager({
 
   if (error) {
     return (
-      <div className={`bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4 ${className}`}>
-        <p className="text-sm text-red-800 dark:text-red-300">Failed to load models</p>
-        <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>
+      <div className={`bg-destructive/10 border border-destructive/30 rounded-lg p-4 ${className}`}>
+        <p className="text-sm text-destructive">Failed to load models</p>
+        <p className="text-xs text-destructive mt-1">{error}</p>
       </div>
     );
   }
@@ -436,6 +505,7 @@ export function ModelManager({
               onCancel={() => cancelDownload(model.name)}
               onDelete={() => deleteModel(model.name)}
               isDownloading={downloadingModels.has(model.name)}
+              isCancelling={cancellingModels.has(model.name)}
               displayName={getDisplayName(model.name)}
             />
           );
@@ -466,6 +536,7 @@ export function ModelManager({
                     onCancel={() => cancelDownload(model.name)}
                     onDelete={() => deleteModel(model.name)}
                     isDownloading={downloadingModels.has(model.name)}
+                    isCancelling={cancellingModels.has(model.name)}
                     displayName={getDisplayName(model.name)}
                   />
                 ))}
@@ -480,7 +551,7 @@ export function ModelManager({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-gray-500 dark:text-slate-400 text-center pt-2"
+          className="text-xs text-muted-foreground text-center pt-2"
         >
           Using {getDisplayName(selectedModel)} for transcription
         </motion.div>
@@ -499,6 +570,7 @@ interface ModelCardProps {
   onCancel: () => void;
   onDelete: () => void;
   isDownloading: boolean;
+  isCancelling: boolean;
   displayName: string;
 }
 
@@ -511,6 +583,7 @@ function ModelCard({
   onCancel,
   onDelete,
   isDownloading,
+  isCancelling,
   displayName
 }: ModelCardProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -521,7 +594,7 @@ function ModelCard({
   const isCorrupted = typeof model.status === 'object' && 'Corrupted' in model.status;
   const downloadProgress =
     typeof model.status === 'object' && 'Downloading' in model.status
-      ? model.status.Downloading
+      ? model.status.Downloading.progress
       : null;
 
   return (
@@ -534,10 +607,10 @@ function ModelCard({
       className={`
         relative rounded-lg border-2 transition-all cursor-pointer
         ${isSelected && isAvailable
-          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+          ? 'border-info bg-info/10'
           : isAvailable
-            ? 'border-gray-200 hover:border-gray-300 bg-white dark:bg-slate-900 dark:border-slate-700 dark:hover:border-slate-600'
-            : 'border-gray-200 bg-gray-50 dark:bg-slate-800 dark:border-slate-700'
+            ? 'border-border hover:border-muted-foreground/40 bg-card'
+            : 'border-border bg-muted/50'
         }
         ${isAvailable ? '' : 'cursor-default'}
       `}
@@ -547,7 +620,7 @@ function ModelCard({
     >
       {/* Recommended Badge */}
       {isRecommended && (
-        <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+        <div className="absolute -top-2 -right-2 bg-info text-primary-foreground text-xs px-2 py-0.5 rounded-full font-medium">
           Recommended
         </div>
       )}
@@ -558,24 +631,24 @@ function ModelCard({
             {/* Model Name and Tagline */}
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <span className="text-2xl">{getModelIcon(model.accuracy)}</span>
-              <h3 className="font-semibold text-gray-900 dark:text-slate-100">{displayName}</h3>
-              <span className="text-sm text-gray-500 dark:text-slate-400">•</span>
-              <span className="text-sm text-gray-500 dark:text-slate-400">{getModelTagline(model.name, model.speed, model.accuracy)}</span>
+              <h3 className="font-semibold text-foreground">{displayName}</h3>
+              <span className="text-sm text-muted-foreground">•</span>
+              <span className="text-sm text-muted-foreground">{getModelTagline(model.name, model.speed, model.accuracy)}</span>
               {isSelected && isAvailable && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
+                  className="bg-info text-primary-foreground px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
                 >
                   ✓
                 </motion.span>
               )}
               {isQuantizedModel(model.name) && (
                 <span className={`px-2 py-0.5 rounded-full text-xs ${getModelPerformanceBadge(model.name).color === 'green'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-success/15 text-success-text'
                   : getModelPerformanceBadge(model.name).color === 'orange'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200'
+                    ? 'bg-warning/15 text-warning-text'
+                    : 'bg-muted text-foreground'
                   }`}>
                   {getModelPerformanceBadge(model.name).label}
                 </span>
@@ -583,7 +656,7 @@ function ModelCard({
             </div>
 
             {/* Model Specs */}
-            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-slate-300 ml-9 mt-1.5">
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground ml-9 mt-1.5">
               <span className="flex items-center space-x-1">
                 <span>📦</span>
                 <span>{formatFileSize(model.size_mb)}</span>
@@ -603,8 +676,8 @@ function ModelCard({
           <div className="ml-4 flex items-center gap-2">
             {isAvailable && (
               <>
-                <div className="flex items-center gap-1.5 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex items-center gap-1.5 text-success-text">
+                  <div className="w-2 h-2 bg-success rounded-full"></div>
                   <span className="text-xs font-medium">Ready</span>
                 </div>
                 <AnimatePresence>
@@ -618,7 +691,7 @@ function ModelCard({
                         e.stopPropagation();
                         onDelete();
                       }}
-                      className="text-gray-400 dark:text-slate-500 hover:text-red-600 transition-colors p-1"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
                       title="Delete model to free up space"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -636,7 +709,7 @@ function ModelCard({
                   e.stopPropagation();
                   onDownload();
                 }}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                className="bg-info text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-info/90 transition-colors"
               >
                 Download
               </button>
@@ -648,7 +721,7 @@ function ModelCard({
                   e.stopPropagation();
                   onDownload();
                 }}
-                className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                className="bg-destructive text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-destructive/90 transition-colors"
               >
                 Retry
               </button>
@@ -661,7 +734,7 @@ function ModelCard({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="bg-orange-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors"
+                  className="bg-warning-strong text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-warning-strong/90 transition-colors"
                 >
                   Delete
                 </button>
@@ -670,7 +743,7 @@ function ModelCard({
                     e.stopPropagation();
                     onDownload();
                   }}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="bg-info text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-info/90 transition-colors"
                 >
                   Re-download
                 </button>
@@ -685,33 +758,39 @@ function ModelCard({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700"
+            className="mt-3 pt-3 border-t border-border"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-blue-600">Downloading...</span>
-                <span className="text-sm font-semibold text-blue-600">{Math.round(downloadProgress)}%</span>
+                <span className="text-sm font-medium text-info-text">Downloading...</span>
+                <span className="text-sm font-semibold text-info-text">{Math.round(downloadProgress)}%</span>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCancel();
-                }}
-                className="text-xs text-gray-600 dark:text-slate-300 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
-                title="Cancel download"
-              >
-                Cancel
-              </button>
+              {isCancelling ? (
+                <span className="text-xs text-muted-foreground font-medium px-2 py-1">
+                  Cancellation requested
+                </span>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel();
+                  }}
+                  className="text-xs text-muted-foreground hover:text-destructive font-medium transition-colors px-2 py-1 rounded hover:bg-destructive/10"
+                  title="Cancel download"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-            <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                className="h-full bg-info rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${downloadProgress}%` }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               />
             </div>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {model.size_mb ? (
                 <>
                   {formatFileSize(model.size_mb * downloadProgress / 100)} / {formatFileSize(model.size_mb)}

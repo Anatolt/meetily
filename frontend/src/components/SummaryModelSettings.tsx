@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal';
+import { SummaryLanguageSettings } from '@/components/SummaryLanguageSettings';
 import { Switch } from './ui/switch';
 import { useConfig } from '@/contexts/ConfigContext';
 
@@ -17,7 +18,7 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
     model: 'llama3.2:latest',
     whisperModel: 'large-v3',
     apiKey: null,
-    ollamaEndpoint: null
+    ollamaEndpoint: null,
   });
 
   const { isAutoSummary, toggleIsAutoSummary } = useConfig();
@@ -123,19 +124,21 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
 
   return (
     <div className='flex flex-col gap-4'>
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Auto Summary</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Auto Generating summary after meeting completion(Stopping)</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Auto Summary</h3>
+            <p className="text-sm text-muted-foreground">Auto Generating summary after meeting completion(Stopping)</p>
           </div>
           <Switch checked={isAutoSummary} onCheckedChange={toggleIsAutoSummary} />
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Summary Model Configuration</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+      <SummaryLanguageSettings />
+
+      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
+        <h3 className="text-lg font-semibold mb-4">Summary Model Configuration</h3>
+        <p className="text-sm text-muted-foreground mb-6">
           Configure the AI model used for generating meeting summaries.
         </p>
 

@@ -7,15 +7,16 @@ import { AISummary } from './index';
 import { Block } from '@blocknote/core';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/shadcn';
+import { blocksToMarkdownSafely } from '@/lib/blocknote-markdown';
 import "@blocknote/shadcn/style.css";
-import { useConfig } from '@/contexts/ConfigContext';
+import { useIsDarkTheme } from '@/hooks/useIsDarkTheme';
 
 // Dynamically import BlockNote Editor to avoid SSR issues
 const Editor = dynamic(() => import('../BlockNoteEditor/Editor'), { ssr: false });
 
 interface BlockNoteSummaryViewProps {
   summaryData: SummaryDataResponse | Summary | null;
-  onSave?: (data: { markdown?: string; summary_json?: BlockNoteBlock[] }) => void;
+  onSave?: (data: { markdown?: string; summary_json?: BlockNoteBlock[] }) => Promise<void>;
   onSummaryChange?: (summary: Summary) => void;
   status?: 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
   error?: string | null;
@@ -75,12 +76,12 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
   meeting,
   onDirtyChange
 }, ref) => {
-  const { resolvedTheme } = useConfig();
   const { format, data } = detectSummaryFormat(summaryData);
   const [isDirty, setIsDirty] = useState(false);
   const [currentBlocks, setCurrentBlocks] = useState<Block[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const isContentLoaded = useRef(false);
+  const isDarkTheme = useIsDarkTheme();
 
   // Create BlockNote editor for markdown parsing
   const editor = useCreateBlockNote({
@@ -141,19 +142,25 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
     try {
       console.log('💾 Saving BlockNote content...');
 
-      // Generate markdown from current blocks
-      const markdown = await editor.blocksToMarkdownLossy(currentBlocks);
-
-      onSave({
-        markdown: markdown,
-        summary_json: currentBlocks as unknown as BlockNoteBlock[]
+      // Generate markdown from current blocks; preserve BlockNote JSON even if markdown conversion fails.
+      const markdownResult = await blocksToMarkdownSafely(editor, currentBlocks, {
+        source: 'BlockNoteSummaryView.handleSave',
       });
 
+      const saveData: { markdown?: string; summary_json?: BlockNoteBlock[] } = {
+        summary_json: currentBlocks as unknown as BlockNoteBlock[]
+      };
+
+      if (markdownResult.markdown !== undefined) {
+        saveData.markdown = markdownResult.markdown;
+      }
+
+      await onSave(saveData);
       setIsDirty(false);
       console.log('✅ Save successful');
-    } catch (err) {
-      console.error('❌ Save failed:', err);
-      alert('Failed to save changes. Please try again.');
+    } catch (error) {
+      console.error('❌ Save failed:', error);
+      throw error;
     } finally {
       setIsSaving(false);
     }
@@ -171,18 +178,28 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
         // For markdown format - use the main editor
         if (format === 'markdown' && editor) {
           console.log('📝 Using markdown editor, blocks:', editor.document.length);
-          const markdown = await editor.blocksToMarkdownLossy(editor.document);
-          console.log('📝 Generated markdown length:', markdown.length);
-          return markdown;
+          const markdownResult = await blocksToMarkdownSafely(editor, editor.document, {
+            source: 'BlockNoteSummaryView.getMarkdown.markdown',
+            fallbackMarkdown: data?.markdown,
+          });
+          console.log('📝 Generated markdown length:', markdownResult.markdown?.length || 0);
+          return markdownResult.markdown || '';
         }
 
         // For blocknote format - use currentBlocks state
         if (format === 'blocknote') {
           console.log('📝 BlockNote format, currentBlocks:', currentBlocks.length);
-          if (currentBlocks.length > 0 && editor) {
-            const markdown = await editor.blocksToMarkdownLossy(currentBlocks);
-            console.log('📝 Generated markdown from blocks, length:', markdown.length);
-            return markdown;
+          const blocks = currentBlocks.length > 0
+            ? currentBlocks
+            : (data?.summary_json as unknown as Block[] | undefined) || [];
+
+          if (blocks.length > 0 && editor) {
+            const markdownResult = await blocksToMarkdownSafely(editor, blocks, {
+              source: 'BlockNoteSummaryView.getMarkdown.blocknote',
+              fallbackMarkdown: data?.markdown,
+            });
+            console.log('📝 Generated markdown from blocks, length:', markdownResult.markdown?.length || 0);
+            return markdownResult.markdown || '';
           }
           // Fallback: if we have the original data with markdown
           if (data?.markdown) {
@@ -250,7 +267,7 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
                 handleEditorChange(editor.document);
               }
             }}
-            theme={resolvedTheme}
+            theme={isDarkTheme ? "dark" : "light"}
           />
         </div>
       </div>

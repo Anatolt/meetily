@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -14,6 +14,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useImportDialog } from '@/contexts/ImportDialogContext';
+import { useConfig } from '@/contexts/ConfigContext';
 
 import {
   Dialog,
@@ -57,6 +59,8 @@ const Sidebar: React.FC = () => {
 
   // Get recording state from RecordingStateContext (single source of truth)
   const { isRecording } = useRecordingState();
+  const { openImportDialog } = useImportDialog();
+  const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
@@ -456,10 +460,10 @@ const Sidebar: React.FC = () => {
             <TooltipTrigger asChild>
               <button
                 onClick={() => router.push('/')}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isHomePage ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                className={`p-2 rounded-lg transition-colors duration-150 ${isHomePage ? 'bg-muted' : 'hover:bg-muted'
                   }`}
               >
-                <Home className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <Home className="w-5 h-5 text-muted-foreground" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -472,12 +476,12 @@ const Sidebar: React.FC = () => {
               <button
                 onClick={handleRecordingToggle}
                 disabled={isRecording}
-                className={`p-2 ${isRecording ? 'bg-red-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-full transition-colors duration-150 shadow-sm`}
+                className={`p-2 ${isRecording ? 'bg-destructive cursor-not-allowed' : 'bg-destructive hover:bg-destructive/90'} rounded-full transition-colors duration-150 shadow-sm`}
               >
                 {isRecording ? (
-                  <Square className="w-5 h-5 text-white" />
+                  <Square className="w-5 h-5 text-primary-foreground" />
                 ) : (
-                  <Mic className="w-5 h-5 text-white" />
+                  <Mic className="w-5 h-5 text-primary-foreground" />
                 )}
               </button>
             </TooltipTrigger>
@@ -486,6 +490,23 @@ const Sidebar: React.FC = () => {
             </TooltipContent>
           </Tooltip>
 
+          {betaFeatures.importAndRetranscribe && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => openImportDialog()}
+                  aria-label="Import Audio"
+                  className="rounded-lg bg-info/15 p-2 text-info-text transition-colors duration-150 hover:bg-info/25"
+                >
+                  <Upload className="w-5 h-5 text-info-text" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Import Audio</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -493,10 +514,10 @@ const Sidebar: React.FC = () => {
                   if (isCollapsed) toggleCollapse();
                   toggleFolder('meetings');
                 }}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isMeetingPage ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                className={`p-2 rounded-lg transition-colors duration-150 ${isMeetingPage ? 'bg-muted' : 'hover:bg-muted'
                   }`}
               >
-                <NotebookPen className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <NotebookPen className="w-5 h-5 text-muted-foreground" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -508,10 +529,10 @@ const Sidebar: React.FC = () => {
             <TooltipTrigger asChild>
               <button
                 onClick={() => router.push('/settings')}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isSettingsPage ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                className={`p-2 rounded-lg transition-colors duration-150 ${isSettingsPage ? 'bg-muted' : 'hover:bg-muted'
                   }`}
               >
-                <Settings className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <Settings className="w-5 h-5 text-muted-foreground" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -548,8 +569,8 @@ const Sidebar: React.FC = () => {
         <div
           className={`flex items-center transition-all duration-150 group ${item.type === 'folder' && depth === 0
             ? 'p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg'
-            : `px-3 py-2 my-0.5 rounded-md text-sm ${isActive ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200 font-medium' :
-              hasTranscriptMatch ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/70'
+            : `px-3 py-2 my-0.5 rounded-md text-sm ${isActive ? 'bg-info/15 text-info-text font-medium' :
+              hasTranscriptMatch ? 'bg-warning/15' : 'hover:bg-accent'
             } cursor-pointer`
             }`}
           style={item.type === 'folder' && depth === 0 ? {} : { paddingLeft }}
@@ -574,25 +595,25 @@ const Sidebar: React.FC = () => {
               <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
               <div className="ml-auto">
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
               {searchQuery && item.id === 'meetings' && isSearching && (
-                <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
+                <span className="ml-2 text-xs text-info-text animate-pulse">Searching...</span>
               )}
             </>
           ) : (
             <div className="flex flex-col w-full">
               <div className="flex items-center w-full">
                 {isMeetingItem ? (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-gray-100 dark:bg-gray-800">
-                    <File className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-muted">
+                    <File className="w-3.5 h-3.5 text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-100 dark:bg-blue-900/30">
-                    <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-info/15">
+                    <Plus className="w-3.5 h-3.5 text-info-text" />
                   </div>
                 )}
                 <span className="flex-1 break-words">{item.title}</span>
@@ -603,7 +624,7 @@ const Sidebar: React.FC = () => {
                         e.stopPropagation();
                         handleEditStart(item.id, item.title);
                       }}
-                      className="hover:text-blue-600 dark:hover:text-blue-300 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 flex-shrink-0"
+                      className="flex-shrink-0 rounded-md p-1 hover:bg-info/10 hover:text-info-text"
                       aria-label="Edit meeting title"
                     >
                       <Pencil className="w-4 h-4" />
@@ -613,7 +634,7 @@ const Sidebar: React.FC = () => {
                         e.stopPropagation();
                         setDeleteModalState({ isOpen: true, itemId: item.id });
                       }}
-                      className="hover:text-red-600 dark:hover:text-red-300 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 flex-shrink-0"
+                      className="hover:text-destructive p-1 rounded-md hover:bg-destructive/10 flex-shrink-0"
                       aria-label="Delete meeting"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -624,8 +645,8 @@ const Sidebar: React.FC = () => {
 
               {/* Show transcript match snippet if available */}
               {hasTranscriptMatch && (
-                <div className="mt-1 ml-8 text-xs text-gray-500 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 p-1.5 rounded border border-yellow-100 dark:border-yellow-800/50 line-clamp-2">
-                  <span className="font-medium text-yellow-600 dark:text-yellow-300">Match:</span> {matchingResult.matchContext}
+                <div className="mt-1 ml-8 line-clamp-2 rounded border border-warning/30 bg-warning/10 p-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-warning-text">Match:</span> {matchingResult.matchContext}
                 </div>
               )}
             </div>
@@ -645,7 +666,8 @@ const Sidebar: React.FC = () => {
       {/* Floating collapse button */}
       <button
         onClick={toggleCollapse}
-        className="absolute -right-6 top-20 z-50 p-1 bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full shadow-lg border dark:border-gray-700 text-gray-700 dark:text-gray-200"
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className="absolute -right-6 top-20 z-50 p-1 bg-card hover:bg-muted rounded-full shadow-lg border"
         style={{ transform: 'translateX(50%)' }}
       >
         {isCollapsed ? (
@@ -656,7 +678,8 @@ const Sidebar: React.FC = () => {
       </button>
 
       <div
-        className={`h-screen bg-white dark:bg-gray-950 border-r dark:border-gray-800 shadow-sm flex flex-col transition-all duration-300 text-gray-900 dark:text-gray-100 ${isCollapsed ? 'w-16' : 'w-64'
+        data-testid="app-sidebar"
+        className={`h-screen bg-card border-r shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'
           }`}
       >
         {/*  Header with traffic light spacing */}
@@ -669,7 +692,7 @@ const Sidebar: React.FC = () => {
           <div className="flex-1">
             {!isCollapsed && (
               <div className="p-3">
-                {/* <span className="text-lg text-center border rounded-full bg-blue-50 border-white font-semibold text-gray-700 mb-2 block items-center">
+                {/* <span className="text-lg text-center border rounded-full bg-info/10 border-background font-semibold text-foreground mb-2 block items-center">
                   <span>Meetily</span>
                 </span> */}
                 <Logo isCollapsed={isCollapsed} />
@@ -705,7 +728,7 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div
                 onClick={() => router.push('/')}
-                className="p-3 text-lg font-semibold items-center hover:bg-gray-100 dark:hover:bg-gray-800 h-10 flex mx-3 mt-3 rounded-lg cursor-pointer"
+                className="p-3  text-lg font-semibold items-center hover:bg-muted h-10   flex mx-3 mt-3 rounded-lg cursor-pointer"
               >
                 <Home className="w-4 h-4 mr-2" />
                 <span>Home</span>
@@ -724,10 +747,10 @@ const Sidebar: React.FC = () => {
                     <div
                       className="flex items-center transition-all duration-150 p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg"
                     >
-                      <NotebookPen className="w-4 h-4 mr-2 text-gray-600 dark:text-gray-300" />
-                      <span className="text-gray-700 dark:text-gray-200">{item.title}</span>
+                      <NotebookPen className="w-4 h-4 mr-2 text-muted-foreground" />
+                      <span className="text-foreground">{item.title}</span>
                       {searchQuery && item.id === 'meetings' && isSearching && (
-                        <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
+                        <span className="ml-2 text-xs text-info-text animate-pulse">Searching...</span>
                       )}
                     </div>
                   </div>
@@ -753,11 +776,11 @@ const Sidebar: React.FC = () => {
         {/* Footer */}
         {!isCollapsed && (
 
-          <div className="flex-shrink-0 p-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex-shrink-0 p-2 border-t border-border">
             <button
               onClick={handleRecordingToggle}
               disabled={isRecording}
-              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white ${isRecording ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-lg transition-colors shadow-sm`}
+              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-primary-foreground ${isRecording ? 'bg-destructive/50 cursor-not-allowed' : 'bg-destructive hover:bg-destructive/90'} rounded-lg transition-colors shadow-sm`}
             >
               {isRecording ? (
                 <>
@@ -772,16 +795,26 @@ const Sidebar: React.FC = () => {
               )}
             </button>
 
+            {betaFeatures.importAndRetranscribe && (
+              <button
+                onClick={() => openImportDialog()}
+                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-foreground bg-info/15 hover:bg-info/20 rounded-lg transition-colors shadow-sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                <span>Import Audio</span>
+              </button>
+            )}
+
             <button
               onClick={() => router.push('/settings')}
-              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors shadow-sm"
+              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors shadow-sm"
             >
               <Settings className="w-4 h-4 mr-2" />
               <span>Settings</span>
             </button>
             <Info isCollapsed={isCollapsed} />
-            <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-gray-400 dark:text-gray-500">
-              v0.2.1
+            <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-muted-foreground">
+              v0.4.1
             </div>
           </div>
         )}
@@ -807,7 +840,7 @@ const Sidebar: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4">Edit Meeting Title</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="meeting-title" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="meeting-title" className="block text-sm font-medium text-foreground mb-2">
                   Meeting Title
                 </label>
                 <input
@@ -822,7 +855,7 @@ const Sidebar: React.FC = () => {
                       handleEditCancel();
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   placeholder="Enter meeting title"
                   autoFocus
                 />
@@ -832,13 +865,13 @@ const Sidebar: React.FC = () => {
           <DialogFooter>
             <button
               onClick={handleEditCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              className="px-4 py-2 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleEditConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-info hover:bg-info/90 rounded-md transition-colors"
             >
               Save
             </button>

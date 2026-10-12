@@ -4,6 +4,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { X, Download, Check, Loader2, ArrowBigDownDash } from 'lucide-react';
+import { getDownloadTotalMb } from '@/lib/onboarding-summary-model';
+import type { ParakeetDownloadProgressEvent } from '@/lib/parakeet';
 
 interface DownloadProgress {
   modelName: string;
@@ -13,6 +15,7 @@ interface DownloadProgress {
   totalMb: number;
   speedMbps: number;
   status: 'downloading' | 'completed' | 'error' | 'cancelled';
+  unitLabel?: string;
   error?: string;
 }
 
@@ -56,58 +59,59 @@ function DownloadToastContent({
   const isComplete = download.status === 'completed';
   const hasError = download.status === 'error';
   const isCancelled = download.status === 'cancelled';
+  const unitLabel = download.unitLabel ?? 'MB';
 
   return (
-    <div className="flex items-center gap-3 w-full max-w-sm bg-white rounded-lg shadow-lg border border-gray-200 p-3 relative">
+    <div className="flex items-center gap-3 w-full max-w-sm bg-card rounded-lg shadow-lg border border-border p-3 relative">
 
       {/* Icon */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isComplete ? 'bg-green-100' : hasError ? 'bg-red-100' : isCancelled ? 'bg-gray-100' : 'bg-gray-100'
+      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isComplete ? 'bg-success/15' : hasError ? 'bg-destructive/15' : isCancelled ? 'bg-muted' : 'bg-muted'
         }`}>
         {isComplete ? (
-          <Check className="w-4 h-4 text-green-600" />
+          <Check className="w-4 h-4 text-success-text" />
         ) : hasError ? (
-          <X className="w-4 h-4 text-red-600" />
+          <X className="w-4 h-4 text-destructive" />
         ) : isCancelled ? (
-          <X className="w-4 h-4 text-gray-600" />
+          <X className="w-4 h-4 text-muted-foreground" />
         ) : (
-          <ArrowBigDownDash className="size-5 text-gray-600 " />
+          <ArrowBigDownDash className="size-5 text-muted-foreground " />
         )}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <p className="text-sm font-medium text-gray-900 truncate">
+          <p className="text-sm font-medium text-foreground truncate">
             {download.displayName}
           </p>
         </div>
 
         {hasError ? (
-          <p className="text-xs text-red-600">{download.error || 'Download failed'}</p>
+          <p className="text-xs text-destructive">{download.error || 'Download failed'}</p>
         ) : isComplete ? (
-          <p className="text-xs text-green-600">Download complete</p>
+          <p className="text-xs text-success-text">Download complete</p>
         ) : isCancelled ? (
-          <p className="text-xs text-gray-600">Download cancelled</p>
+          <p className="text-xs text-muted-foreground">Download cancelled</p>
         ) : (
           <>
             {/* Progress bar */}
-            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mb-1.5">
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mb-1.5">
               <div
-                className="h-full bg-gray-900 rounded-full transition-all duration-300"
+                className="h-full bg-primary rounded-full transition-all duration-300"
                 style={{ width: `${download.progress}%` }}
               />
             </div>
 
             {/* Progress text */}
-            <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {download.downloadedMb.toFixed(1)} / {download.totalMb.toFixed(1)} MB
+                {download.downloadedMb.toFixed(1)} / {download.totalMb.toFixed(1)} {unitLabel}
               </span>
               <span className="flex items-center gap-1">
                 {download.speedMbps > 0 && (
-                  <span>{download.speedMbps.toFixed(1)} MB/s</span>
+                  <span>{download.speedMbps.toFixed(1)} {unitLabel}/s</span>
                 )}
-                <span className="text-gray-900 font-medium">
+                <span className="text-foreground font-medium">
                   {Math.round(download.progress)}%
                 </span>
               </span>
@@ -218,38 +222,30 @@ export function useDownloadProgressToast() {
 
   // Listen to Parakeet download events
   useEffect(() => {
-    const unlistenProgress = listen<{
-      modelName: string;
-      progress: number;
-      downloaded_mb?: number;
-      total_mb?: number;
-      speed_mbps?: number;
-      status?: string;
-    }>('parakeet-model-download-progress', (event) => {
-      const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+    const unlistenProgress = listen<ParakeetDownloadProgressEvent>(
+      'parakeet-model-download-progress',
+      (event) => {
+        const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+        const downloadData: DownloadProgress = {
+          modelName,
+          displayName: 'Transcription Model (Parakeet)',
+          progress,
+          downloadedMb: downloaded_mb ?? 0,
+          totalMb: total_mb ?? 670,
+          speedMbps: speed_mbps ?? 0,
+          status: status === 'cancelled'
+            ? 'cancelled'
+            : status === 'completed'
+              ? 'completed'
+              : 'downloading',
+        };
 
-      const downloadData: DownloadProgress = {
-        modelName,
-        displayName: 'Transcription Model (Parakeet)',
-        progress,
-        downloadedMb: downloaded_mb ?? 0,
-        totalMb: total_mb ?? 670,
-        speedMbps: speed_mbps ?? 0,
-        status: status === 'cancelled'
-          ? 'cancelled'
-          : status === 'completed' || progress >= 100
-          ? 'completed'
-          : 'downloading',
-      };
-
-      updateDownload(modelName, downloadData);
-
-      // Clean up cancelled downloads after delay to auto-dismiss toast
-      if (downloadData.status === 'cancelled') {
-        cleanupDownload(modelName, 6000); // 5s toast + 1s buffer
+        updateDownload(modelName, downloadData);
+        if (downloadData.status === 'cancelled') {
+          cleanupDownload(modelName, 6000);
+        }
       }
-      // Removed direct showDownloadToast call here, handled by effect
-    });
+    );
 
     const unlistenComplete = listen<{ modelName: string }>(
       'parakeet-model-download-complete',
@@ -297,7 +293,7 @@ export function useDownloadProgressToast() {
     };
   }, [updateDownload, cleanupDownload]);
 
-  // Listen to Built-in AI (Gemma) download events
+  // Listen to Built-in AI summary model download events
   useEffect(() => {
     const unlisten = listen<{
       model: string;
@@ -315,8 +311,9 @@ export function useDownloadProgressToast() {
         displayName: `Summary Model (${model})`,
         progress: progress ?? 0,
         downloadedMb: downloaded_mb ?? 0,
-        totalMb: total_mb ?? (model.includes('4b') ? 2500 : 806),
+        totalMb: getDownloadTotalMb(total_mb, model),
         speedMbps: speed_mbps ?? 0,
+        unitLabel: 'MiB',
         status: status === 'completed' || progress >= 100
           ? 'completed'
           : status === 'cancelled'

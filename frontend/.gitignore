@@ -6,7 +6,6 @@
 **/models/*.bin
 /.pnp
 .pnp.*
-pnpm-lock.yaml
 package-lock.json
 .yarn/*
 !.yarn/patches
@@ -25,6 +24,8 @@ whisper-server-package/
 # testing
 /coverage
 /dist
+/test-results
+/playwright-report
 
 # next.js
 /.next/

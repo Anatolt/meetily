@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
-import { TranscriptSettings, TranscriptModelProps } from '@/components/TranscriptSettings';
+import { TranscriptSettings } from '@/components/TranscriptSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
+import { BetaSettings } from '@/components/BetaSettings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
@@ -17,7 +18,8 @@ const TABS = [
   { value: 'general', label: 'General', icon: Settings2 },
   { value: 'recording', label: 'Recordings', icon: Mic },
   { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
-  { value: 'summaryModels', label: 'Summary', icon: SparkleIcon }
+  { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
+  { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
 
 export default function SettingsPage() {
@@ -61,29 +63,29 @@ export default function SettingsPage() {
   }, [activeTab]);
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
+    <div className="h-screen bg-muted/40 flex flex-col">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-6xl mx-auto px-8 py-6">
+      <div className="sticky top-0 z-10 bg-muted/40 border-b border-border">
+        <div className="max-w-6xl mx-auto px-4 py-6 sm:px-8">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Back</span>
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+            <h1 className="text-3xl font-bold">Settings</h1>
           </div>
         </div>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-8 pt-6">
+        <div className="max-w-6xl mx-auto p-4 pt-6 sm:p-8 sm:pt-6">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-transparent relative rounded-none border-b border-gray-200 dark:border-gray-800 p-0 h-auto">
+            <TabsList className="bg-transparent relative w-full overflow-x-auto rounded-none border-b border-border p-0 h-auto">
               {TABS.map((tab, index) => {
                 const Icon = tab.icon;
                 return (
@@ -91,7 +93,7 @@ export default function SettingsPage() {
                     key={tab.value}
                     value={tab.value}
                     ref={el => { tabRefs.current[index] = el }}
-                    className="flex items-center gap-2 px-6 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white relative z-10"
+                    className="flex shrink-0 items-center gap-2 px-4 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-info-text data-[state=active]:shadow-none text-muted-foreground hover:text-foreground relative z-10 sm:px-6"
                   >
                     <Icon className="w-4 h-4" />
                     {tab.label}
@@ -100,7 +102,7 @@ export default function SettingsPage() {
               })}
 
               <motion.div
-                className="absolute bottom-0 z-20 h-0.5 bg-blue-600"
+                className="absolute bottom-0 z-20 h-0.5 bg-info"
                 layoutId="underline"
                 style={{ left: underlineStyle.left, width: underlineStyle.width }}
                 transition={{ type: 'spring', stiffness: 400, damping: 40 }}
@@ -121,6 +123,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
+            </TabsContent>
+            <TabsContent value="beta" className="mt-6">
+              <BetaSettings />
             </TabsContent>
           </Tabs>
         </div>

@@ -5,6 +5,17 @@ import { TranscriptModelProps } from '@/components/TranscriptSettings';
 import { SelectedDevices } from '@/components/DeviceSelection';
 import { configService, ModelConfig } from '@/services/configService';
 import { invoke } from '@tauri-apps/api/core';
+import Analytics from '@/lib/analytics';
+import { BetaFeatures, BetaFeatureKey, loadBetaFeatures, saveBetaFeatures } from '@/types/betaFeatures';
+import {
+  applyEffectiveTheme,
+  readStoredThemeMode,
+  resolveEffectiveTheme,
+  THEME_STORAGE_KEY,
+  type ThemeMode,
+} from '@/lib/theme';
+
+export type { ThemeMode } from '@/lib/theme';
 
 export interface OllamaModel {
   name: string;
@@ -40,12 +51,11 @@ export interface NotificationSettings {
   };
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system';
-
 interface ConfigContextType {
   // Model configuration
   modelConfig: ModelConfig;
   setModelConfig: (config: ModelConfig | ((prev: ModelConfig) => ModelConfig)) => void;
+  isModelConfigLoading: boolean;
 
   // Transcript model configuration
   transcriptModelConfig: TranscriptModelProps;
@@ -64,7 +74,10 @@ interface ConfigContextType {
   toggleConfidenceIndicator: (checked: boolean) => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  resolvedTheme: 'light' | 'dark';
+
+  // Beta features
+  betaFeatures: BetaFeatures;
+  toggleBetaFeature: (featureKey: BetaFeatureKey, enabled: boolean) => void;
 
   // Ollama models
   models: OllamaModel[];
@@ -94,15 +107,16 @@ interface ConfigContextType {
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
-
 export function ConfigProvider({ children }: { children: ReactNode }) {
   // Model configuration state
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
     provider: 'ollama',
     model: 'llama3.2:latest',
     whisperModel: 'large-v3',
-    ollamaEndpoint: null
+    ollamaEndpoint: null,
   });
+  const [isModelConfigLoading, setIsModelConfigLoading] = useState(true);
+
 
   // Transcript model configuration state
   const [transcriptModelConfig, setTranscriptModelConfig] = useState<TranscriptModelProps>({
@@ -136,7 +150,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   });
 
   // Language preference state
-  const [selectedLanguage, setSelectedLanguage] = useState('auto-translate');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('primaryLanguage');
+      return saved || 'auto';
+    }
+    return 'auto';
+  });
 
   // UI preferences state
   const [showConfidenceIndicator, setShowConfidenceIndicator] = useState<boolean>(() => {
@@ -147,21 +167,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     return true;
   });
 
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('themeMode');
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        return saved;
-      }
-    }
-    return 'system';
-  });
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
-  });
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => readStoredThemeMode());
 
   // Summary configs
   const [isAutoSummary, setisAutoSummary] = useState<boolean>(() => {
@@ -170,6 +176,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       return saved !== null ? saved === 'true' : false
     }
     return false;
+  });
+
+  // Beta features state (localStorage)
+  const [betaFeatures, setBetaFeatures] = useState<BetaFeatures>(() => {
+    return loadBetaFeatures();
   });
 
   // Preference settings state (lazy loaded)
@@ -214,6 +225,19 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     };
     loadTranscriptConfig();
   }, []);
+
+  // Sync language preference to Rust on mount (fixes startup desync bug)
+  useEffect(() => {
+    if (selectedLanguage) {
+      invoke('set_language_preference', { language: selectedLanguage })
+        .then(() => {
+          console.log('[ConfigContext] Synced language preference to Rust on startup:', selectedLanguage);
+        })
+        .catch(err => {
+          console.error('[ConfigContext] Failed to sync language preference to Rust on startup:', err);
+        });
+    }
+  }, []); 
 
   // Load model configuration on mount
   useEffect(() => {
@@ -277,6 +301,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to fetch saved model config in ConfigContext:', error);
+      } finally {
+        setIsModelConfigLoading(false);
       }
     };
     fetchModelConfig();
@@ -352,24 +378,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     loadDevicePreferences();
   }, []);
 
-  // Load language preference on mount
-  useEffect(() => {
-    const loadLanguagePreference = async () => {
-      try {
-        const language = await configService.getLanguagePreference();
-        if (language) {
-          setSelectedLanguage(language);
-          console.log('Loaded language preference:', language);
-        }
-      } catch (error) {
-        console.log('No language preference found or failed to load, using default (auto-translate):', error);
-        // Default to 'auto-translate' (Auto Detect with English translation) if no preference is saved
-        setSelectedLanguage('auto-translate');
-      }
-    };
-    loadLanguagePreference();
-  }, []);
-
   // Calculate model options based on available models
   const modelOptions: Record<ModelConfig['provider'], string[]> = {
     ollama: models.map(model => model.name),
@@ -394,72 +402,57 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('themeMode', mode);
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+      } catch {}
     }
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const root = document.documentElement;
-    let unlistenThemeChanged: (() => void) | null = null;
-
-    const getSystemTheme = async (): Promise<'light' | 'dark'> => {
-      // Prefer native Tauri window theme when available (more reliable on Windows)
-      if ((window as any).__TAURI_INTERNALS__) {
-        try {
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const tauriTheme = await getCurrentWindow().theme();
-          if (tauriTheme === 'dark' || tauriTheme === 'light') {
-            return tauriTheme;
-          }
-        } catch (error) {
-          console.warn('[ConfigContext] Failed to read Tauri window theme, falling back to matchMedia:', error);
-        }
-      }
-      return mediaQuery.matches ? 'dark' : 'light';
-    };
-
-    const applyTheme = async () => {
-      const systemTheme = await getSystemTheme();
-      const nextTheme: 'light' | 'dark' =
-        themeMode === 'dark' || (themeMode === 'system' && systemTheme === 'dark') ? 'dark' : 'light';
-      setResolvedTheme(nextTheme);
-      root.classList.toggle('dark', nextTheme === 'dark');
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      applyEffectiveTheme(resolveEffectiveTheme(themeMode, media.matches));
     };
 
     applyTheme();
 
-    if (themeMode !== 'system') {
-      return () => {
-        if (unlistenThemeChanged) unlistenThemeChanged();
-      };
-    }
+    if (themeMode !== 'system') return;
 
-    const handleChange = () => {
-      applyTheme();
-    };
-    mediaQuery.addEventListener('change', handleChange);
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [themeMode]);
 
-    // Listen to native OS theme changes in Tauri
-    const setupTauriThemeListener = async () => {
-      if (!(window as any).__TAURI_INTERNALS__) return;
+  const ownsNativeThemeRef = useRef(false);
+  const nativeThemeSeqRef = useRef(0);
+
+  useEffect(() => {
+    // 'system' is Tauri's default; skip the initial no-op IPC call until we've
+    // taken ownership by applying an explicit theme at least once. Ownership is
+    // claimed synchronously here (not after the async setTheme resolves) so a
+    // switch back to System while a previous explicit call is still in flight
+    // is never skipped — otherwise the stale call would strand native chrome
+    // on the old theme while the webview follows System.
+    if (!ownsNativeThemeRef.current && themeMode === 'system') return;
+    ownsNativeThemeRef.current = true;
+
+    const seq = ++nativeThemeSeqRef.current;
+
+    const applyNativeTheme = async () => {
       try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        unlistenThemeChanged = await getCurrentWindow().onThemeChanged(() => {
-          applyTheme();
-        });
+        const { setTheme } = await import('@tauri-apps/api/app');
+        // A newer theme change has superseded this one; don't issue a stale IPC.
+        if (seq !== nativeThemeSeqRef.current) return;
+        await setTheme(themeMode === 'system' ? null : themeMode);
       } catch (error) {
-        console.warn('[ConfigContext] Failed to subscribe to Tauri theme changes:', error);
+        // Surface in production too: a silent failure here leaves native
+        // window chrome permanently mismatched with the webview theme.
+        console.warn('[ConfigContext] Failed to sync native window theme:', error);
       }
     };
-    setupTauriThemeListener();
 
-    return () => {
-      mediaQuery.removeEventListener('change', handleChange);
-      if (unlistenThemeChanged) unlistenThemeChanged();
-    };
+    applyNativeTheme();
   }, [themeMode]);
 
   const toggleIsAutoSummary = useCallback((checked: boolean) => {
@@ -468,6 +461,22 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('isAutoSummary', checked.toString());
     }
   }, [])
+
+  // Toggle beta feature with localStorage persistence and analytics
+  const toggleBetaFeature = useCallback((featureKey: BetaFeatureKey, enabled: boolean) => {
+    setBetaFeatures(prev => {
+      const updated = { ...prev, [featureKey]: enabled };
+      saveBetaFeatures(updated);
+
+      // Track analytics with specific feature
+      Analytics.track('beta_feature_toggled', {
+        feature: featureKey,
+        enabled: enabled.toString(),
+      }).catch(err => console.error('Failed to track beta feature toggle:', err));
+
+      return updated;
+    });
+  }, []);
 
   // Update individual provider API key
   const updateProviderApiKey = useCallback((provider: string, apiKey: string | null) => {
@@ -534,9 +543,22 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Wrapper for setSelectedLanguage that persists to localStorage and syncs to Rust
+  const handleSetSelectedLanguage = useCallback((lang: string) => {
+    setSelectedLanguage(lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('primaryLanguage', lang);
+    }
+    // Sync with Rust in-memory state for live recording
+    invoke('set_language_preference', { language: lang }).catch(err =>
+      console.error('Failed to sync language preference to Rust:', err)
+    );
+  }, []);
+
   const value: ConfigContextType = useMemo(() => ({
     modelConfig,
     setModelConfig,
+    isModelConfigLoading,
     isAutoSummary,
     toggleIsAutoSummary,
     providerApiKeys,
@@ -546,12 +568,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     selectedDevices,
     setSelectedDevices,
     selectedLanguage,
-    setSelectedLanguage,
+    setSelectedLanguage: handleSetSelectedLanguage,
     showConfidenceIndicator,
     toggleConfidenceIndicator,
     themeMode,
     setThemeMode,
-    resolvedTheme,
+    betaFeatures,
+    toggleBetaFeature,
     models,
     modelOptions,
     error,
@@ -562,6 +585,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     updateNotificationSettings,
   }), [
     modelConfig,
+    isModelConfigLoading,
     isAutoSummary,
     toggleIsAutoSummary,
     providerApiKeys,
@@ -569,11 +593,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     transcriptModelConfig,
     selectedDevices,
     selectedLanguage,
+    handleSetSelectedLanguage,
     showConfidenceIndicator,
     toggleConfidenceIndicator,
     themeMode,
     setThemeMode,
-    resolvedTheme,
+    betaFeatures,
+    toggleBetaFeature,
     models,
     modelOptions,
     error,

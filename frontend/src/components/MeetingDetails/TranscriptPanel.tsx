@@ -23,6 +23,11 @@ interface TranscriptPanelProps {
   totalCount?: number;
   loadedCount?: number;
   onLoadMore?: () => void;
+
+  // Retranscription props
+  meetingId?: string;
+  meetingFolderPath?: string | null;
+  onRefetchTranscripts?: () => Promise<void>;
 }
 
 export function TranscriptPanel({
@@ -40,6 +45,9 @@ export function TranscriptPanel({
   totalCount,
   loadedCount,
   onLoadMore,
+  meetingId,
+  meetingFolderPath,
+  onRefetchTranscripts,
 }: TranscriptPanelProps) {
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -57,13 +65,16 @@ export function TranscriptPanel({
   }, [transcripts, usePagination, segments]);
 
   return (
-    <div className="hidden md:flex md:w-1/4 lg:w-1/3 min-w-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex-col relative shrink-0">
+    <div className="flex h-full min-w-0 w-full bg-card flex-col relative @container">
       {/* Title area */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="p-4 border-b border-border">
         <TranscriptButtonGroup
           transcriptCount={usePagination ? (totalCount ?? convertedSegments.length) : (transcripts?.length || 0)}
           onCopyTranscript={onCopyTranscript}
           onOpenMeetingFolder={onOpenMeetingFolder}
+          meetingId={meetingId}
+          meetingFolderPath={meetingFolderPath}
+          onRefetchTranscripts={onRefetchTranscripts}
         />
       </div>
 
@@ -88,10 +99,10 @@ export function TranscriptPanel({
 
       {/* Custom prompt input at bottom of transcript section */}
       {!isRecording && convertedSegments.length > 0 && (
-        <div className="p-1 border-t border-gray-200 dark:border-gray-800">
+        <div className="p-1 border-t border-border">
           <textarea
             placeholder="Add context for AI summary. For example people involved, meeting overview, objective etc..."
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-900 shadow-sm min-h-[80px] resize-y"
+            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring bg-card shadow-sm min-h-[80px] resize-y"
             value={customPrompt}
             onChange={(e) => onPromptChange(e.target.value)}
           />
