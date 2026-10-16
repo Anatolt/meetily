@@ -2,6 +2,7 @@
   const storageKey = "meetily-download-theme";
   const root = document.documentElement;
   const controls = Array.from(document.querySelectorAll('input[name="theme"]'));
+  const heroImage = document.querySelector(".hero-visual img");
   const systemQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
   function storedTheme() {
@@ -17,6 +18,8 @@
     const resolved = mode === "system" ? (systemQuery.matches ? "dark" : "light") : mode;
     root.dataset.theme = resolved;
     root.dataset.themeMode = mode;
+    heroImage.src = resolved === "dark" ? heroImage.dataset.darkSrc : heroImage.dataset.lightSrc;
+    heroImage.alt = `Meetily running on macOS with a ${resolved} appearance and live transcript`;
     controls.forEach((control) => {
       control.checked = control.value === mode;
     });
