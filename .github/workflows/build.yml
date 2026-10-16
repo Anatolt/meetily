@@ -628,6 +628,11 @@ jobs:
           releaseId: ${{ inputs.release-id }}
           args: ${{ inputs.build-args }} ${{ steps.build-features.outputs.features }} ${{ steps.windows-portability.outputs.args }}
 
+      - name: Verify bundled ONNX Runtime
+        if: contains(inputs.platform, 'windows')
+        shell: pwsh
+        run: frontend/scripts/verify-windows-onnx-bundle.ps1 -SearchRoot target
+
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts && contains(inputs.platform, 'macos')
         uses: actions/upload-artifact@v4

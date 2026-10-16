@@ -2,7 +2,9 @@
   "bundle": {
     "resources": {
       "templates": "templates",
-      "binaries/onnxruntime": "."
+      "binaries/onnxruntime/onnxruntime.dll": "onnxruntime.dll",
+      "binaries/onnxruntime/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",
+      "binaries/onnxruntime/onnxruntime-LICENSE.txt": "onnxruntime-LICENSE.txt"
     }
   }
 }
